@@ -57,4 +57,11 @@ abstract class _UpdateApplicationRequest {
     @JsonProperty("name")
     @Nullable
     abstract String getName();
+
+    /**
+     * The current desired state of the application
+     */
+    @JsonProperty("state")
+    @Nullable
+    abstract ApplicationState getState();
 }

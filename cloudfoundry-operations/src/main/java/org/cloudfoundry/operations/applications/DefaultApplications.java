@@ -564,7 +564,6 @@ public final class DefaultApplications implements Applications {
             .checkpoint();
     }
 
-    //TODO: start v3
     @Override
     public Mono<Void> start(StartApplicationRequest request) {
         return Mono
@@ -579,7 +578,6 @@ public final class DefaultApplications implements Applications {
                 .checkpoint();
     }
 
-    //TODO: stop v3
     @Override
     public Mono<Void> stop(StopApplicationRequest request) {
         return Mono
@@ -1754,6 +1752,10 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<AbstractApplicationResource> stopApplication(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STOPPED_STATE);
+    }
+
+    private static Mono<ApplicationResource> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STOPPED);
     }
 
     private static Mono<AbstractApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, AbstractApplicationResource resource) {

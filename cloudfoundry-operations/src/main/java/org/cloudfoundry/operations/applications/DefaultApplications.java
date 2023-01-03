@@ -823,6 +823,12 @@ public final class DefaultApplications implements Applications {
             .map(ResourceUtils::getId);
     }
 
+    private static Mono<String> getApplicationV3IdWhere(CloudFoundryClient cloudFoundryClient, String application, String spaceId, Predicate<ApplicationResource> predicate) {
+        return getApplicationV3(cloudFoundryClient, application, spaceId)
+                .filter(predicate)
+                .map(ApplicationResource::getId);
+    }
+
     private static Mono<ApplicationInstancesResponse> getApplicationInstances(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestApplicationInstances(cloudFoundryClient, applicationId)
             .onErrorResume(ExceptionUtils.statusCode(CF_BUILDPACK_COMPILED_FAILED, CF_INSTANCES_ERROR, CF_STAGING_NOT_FINISHED, CF_STAGING_TIME_EXPIRED, CF_STAGING_ERROR),

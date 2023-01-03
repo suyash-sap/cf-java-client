@@ -571,7 +571,7 @@ public final class DefaultApplications implements Applications {
                 .zip(this.cloudFoundryClient, this.spaceId)
                 .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                         Mono.just(cloudFoundryClient),
-                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotInV3(ApplicationState.STARTED))
+                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STARTED))
                 )))
                 .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(),
                         request.getStartupTimeout())))
@@ -1101,8 +1101,8 @@ public final class DefaultApplications implements Applications {
         return state -> "RUNNING".equals(state) || "FAILED".equals(state);
     }
 
-    private static Predicate<AbstractApplicationResource> isNotIn(String expectedState) {
-        return resource -> isNotIn(resource, expectedState);
+    private static Predicate<ApplicationResource> isNotIn(ApplicationState expectedState) {
+        return resource -> !expectedState.equals(resource.getState());
     }
 
     private static boolean isNotIn(AbstractApplicationResource resource, String expectedState) {

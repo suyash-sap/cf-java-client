@@ -86,6 +86,7 @@ import org.cloudfoundry.client.v3.BuildpackData;
 import org.cloudfoundry.client.v3.Lifecycle;
 import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.ApplicationResource;
+import org.cloudfoundry.client.v3.applications.ApplicationState;
 import org.cloudfoundry.client.v3.applications.GetApplicationResponse;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
@@ -563,32 +564,34 @@ public final class DefaultApplications implements Applications {
             .checkpoint();
     }
 
+    //TODO: start v3
     @Override
     public Mono<Void> start(StartApplicationRequest request) {
         return Mono
-            .zip(this.cloudFoundryClient, this.spaceId)
-            .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
-                Mono.just(cloudFoundryClient),
-                getApplicationIdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(STARTED_STATE))
-            )))
-            .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationAndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(),
-                request.getStartupTimeout())))
-            .transform(OperationsLogging.log("Start Application"))
-            .checkpoint();
+                .zip(this.cloudFoundryClient, this.spaceId)
+                .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
+                        Mono.just(cloudFoundryClient),
+                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotInV3(ApplicationState.STARTED))
+                )))
+                .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(),
+                        request.getStartupTimeout())))
+                .transform(OperationsLogging.log("Start Application"))
+                .checkpoint();
     }
 
+    //TODO: stop v3
     @Override
     public Mono<Void> stop(StopApplicationRequest request) {
         return Mono
-            .zip(this.cloudFoundryClient, this.spaceId)
-            .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
-                Mono.just(cloudFoundryClient),
-                getApplicationIdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(STOPPED_STATE))
-            )))
-            .flatMap(function(DefaultApplications::stopApplication))
-            .then()
-            .transform(OperationsLogging.log("Stop Application"))
-            .checkpoint();
+                .zip(this.cloudFoundryClient, this.spaceId)
+                .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
+                        Mono.just(cloudFoundryClient),
+                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotInV3(ApplicationState.STOPPED))
+                )))
+                .flatMap(function(DefaultApplications::stopApplicationV3))
+                .then()
+                .transform(OperationsLogging.log("Stop Application"))
+                .checkpoint();
     }
 
     @Override

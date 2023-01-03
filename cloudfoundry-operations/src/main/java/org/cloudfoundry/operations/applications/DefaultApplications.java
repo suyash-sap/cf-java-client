@@ -586,7 +586,7 @@ public final class DefaultApplications implements Applications {
                 .zip(this.cloudFoundryClient, this.spaceId)
                 .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                         Mono.just(cloudFoundryClient),
-                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotInV3(ApplicationState.STOPPED))
+                        getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STOPPED))
                 )))
                 .flatMap(function(DefaultApplications::stopApplicationV3))
                 .then()
@@ -1726,6 +1726,24 @@ public final class DefaultApplications implements Applications {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STARTED_STATE)
             .flatMap(response -> waitForStaging(cloudFoundryClient, application, applicationId, stagingTimeout))
             .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+    }
+
+    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STARTED)
+                .flatMap(response -> waitForStaging(cloudFoundryClient, application, applicationId, stagingTimeout))
+                .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+    }
+
+    private static Mono<ApplicationResource> requestUpdateApplicationStateV3(CloudFoundryClient cloudFoundryClient, String applicationId, ApplicationState state) {
+        return requestUpdateApplicationV3(cloudFoundryClient, applicationId, builder -> builder.state(state));
+    }
+
+    private static Mono<ApplicationResource> requestUpdateApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId, UnaryOperator<org.cloudfoundry.client.v3.applications.UpdateApplicationRequest.Builder> modifier) {
+        return cloudFoundryClient.applicationsV3()
+                .update(modifier.apply(org.cloudfoundry.client.v3.applications.UpdateApplicationRequest.builder()
+                                .applicationId(applicationId))
+                        .build())
+                .cast(ApplicationResource.class);
     }
 
     private static Mono<Void> stopAndStartApplication(CloudFoundryClient cloudFoundryClient, String applicationId, String name, PushApplicationManifestRequest request) {

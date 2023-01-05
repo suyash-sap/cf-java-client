@@ -1762,14 +1762,6 @@ public final class DefaultApplications implements Applications {
         return ApplicationState.STARTED::equals;
     }
 
-    private static Mono<ApplicationResource> requestUpdateApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId, UnaryOperator<org.cloudfoundry.client.v3.applications.UpdateApplicationRequest.Builder> modifier) {
-        return cloudFoundryClient.applicationsV3()
-                .update(modifier.apply(org.cloudfoundry.client.v3.applications.UpdateApplicationRequest.builder()
-                                .applicationId(applicationId))
-                        .build())
-                .cast(ApplicationResource.class);
-    }
-
     private static Mono<Void> stopAndStartApplication(CloudFoundryClient cloudFoundryClient, String applicationId, String name, PushApplicationManifestRequest request) {
         return stopApplication(cloudFoundryClient, applicationId)
             .filter(resource -> shouldStartApplication(request, resource))
@@ -1779,10 +1771,6 @@ public final class DefaultApplications implements Applications {
     private static Mono<AbstractApplicationResource> stopApplication(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STOPPED_STATE);
     }
-
-//    private static Mono<ApplicationResource> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
-//        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STOPPED);
-//    }
 
     private static Mono<AbstractApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, AbstractApplicationResource resource) {
         return isNotIn(resource, STOPPED_STATE) ? stopApplication(cloudFoundryClient, ResourceUtils.getId(resource)) : Mono.just(resource);

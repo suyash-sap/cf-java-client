@@ -57,5 +57,4 @@ abstract class _UpdateApplicationRequest {
     @JsonProperty("name")
     @Nullable
     abstract String getName();
-
 }

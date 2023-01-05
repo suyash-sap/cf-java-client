@@ -582,7 +582,7 @@ public final class DefaultApplications implements Applications {
                         Mono.just(cloudFoundryClient),
                         getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STOPPED))
                 )))
-                .flatMap(function(DefaultApplications::stopApplication))
+                .flatMap(function(DefaultApplications::stopApplicationV3))
                 .then()
                 .transform(OperationsLogging.log("Stop Application"))
                 .checkpoint();
@@ -1727,9 +1727,20 @@ public final class DefaultApplications implements Applications {
                 .then(waitApplicationV3ForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
+    private static Mono<StopApplicationResponse> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestApplicationStop(cloudFoundryClient, applicationId);
+    }
+
     private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return cloudFoundryClient.applicationsV3()
                 .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
+
+    private static Mono<StopApplicationResponse> requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
                         .applicationId(applicationId)
                         .build());
     }

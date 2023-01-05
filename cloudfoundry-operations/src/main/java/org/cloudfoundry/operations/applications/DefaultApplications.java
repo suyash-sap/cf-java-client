@@ -85,10 +85,7 @@ import org.cloudfoundry.client.v2.stacks.StackResource;
 import org.cloudfoundry.client.v3.BuildpackData;
 import org.cloudfoundry.client.v3.Lifecycle;
 import org.cloudfoundry.client.v3.Resource;
-import org.cloudfoundry.client.v3.applications.ApplicationResource;
-import org.cloudfoundry.client.v3.applications.ApplicationState;
-import org.cloudfoundry.client.v3.applications.GetApplicationResponse;
-import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
+import org.cloudfoundry.client.v3.applications.*;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
@@ -572,8 +569,7 @@ public final class DefaultApplications implements Applications {
                         Mono.just(cloudFoundryClient),
                         getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STARTED))
                 )))
-                .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(),
-                        request.getStartupTimeout())))
+                .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStartupTimeout())))
                 .transform(OperationsLogging.log("Start Application"))
                 .checkpoint();
     }
@@ -586,7 +582,7 @@ public final class DefaultApplications implements Applications {
                         Mono.just(cloudFoundryClient),
                         getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STOPPED))
                 )))
-                .flatMap(function(DefaultApplications::stopApplicationV3))
+                .flatMap(function(DefaultApplications::stopApplication))
                 .then()
                 .transform(OperationsLogging.log("Stop Application"))
                 .checkpoint();
@@ -1726,14 +1722,44 @@ public final class DefaultApplications implements Applications {
             .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
-    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
-        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STARTED)
-                .flatMap(response -> waitForStaging(cloudFoundryClient, application, applicationId, stagingTimeout))
-                .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
+        return requestApplicationStart(cloudFoundryClient, applicationId)
+                .then(waitApplicationV3ForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
-    private static Mono<ApplicationResource> requestUpdateApplicationStateV3(CloudFoundryClient cloudFoundryClient, String applicationId, ApplicationState state) {
-        return requestUpdateApplicationV3(cloudFoundryClient, applicationId, builder -> builder.state(state));
+    private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
+
+    private static Mono<Void> waitApplicationV3ForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
+        Duration timeout = Optional.ofNullable(startupTimeout).orElse(Duration.ofMinutes(5));
+
+        return requestApplicationInstancesV3(cloudFoundryClient, applicationId)
+                .map(GetApplicationResponse::getState)
+                .filter(isInstanceCompleteV3())
+                .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), timeout))
+                .filter(isStarted())
+                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
+                .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
+                .then();
+    }
+
+    private static Predicate<ApplicationState> isInstanceCompleteV3() {
+        return state -> ApplicationState.STARTED.equals(state) || ApplicationState.STOPPED.equals(state);
+    }
+
+    private static Mono<GetApplicationResponse> requestApplicationInstancesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .get(org.cloudfoundry.client.v3.applications.GetApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
+
+    private static Predicate<ApplicationState> isStarted() {
+        return ApplicationState.STARTED::equals;
     }
 
     private static Mono<ApplicationResource> requestUpdateApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId, UnaryOperator<org.cloudfoundry.client.v3.applications.UpdateApplicationRequest.Builder> modifier) {
@@ -1754,9 +1780,9 @@ public final class DefaultApplications implements Applications {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STOPPED_STATE);
     }
 
-    private static Mono<ApplicationResource> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STOPPED);
-    }
+//    private static Mono<ApplicationResource> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+//        return requestUpdateApplicationStateV3(cloudFoundryClient, applicationId, ApplicationState.STOPPED);
+//    }
 
     private static Mono<AbstractApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, AbstractApplicationResource resource) {
         return isNotIn(resource, STOPPED_STATE) ? stopApplication(cloudFoundryClient, ResourceUtils.getId(resource)) : Mono.just(resource);

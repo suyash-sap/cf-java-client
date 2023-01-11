@@ -84,10 +84,14 @@ import org.cloudfoundry.client.v2.stacks.ListStacksRequest;
 import org.cloudfoundry.client.v2.stacks.StackResource;
 import org.cloudfoundry.client.v3.BuildpackData;
 import org.cloudfoundry.client.v3.Lifecycle;
+import org.cloudfoundry.client.v3.Relationship;
 import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.*;
-import org.cloudfoundry.client.v3.applications.*;
 import org.cloudfoundry.client.v3.builds.*;
+import org.cloudfoundry.client.v3.droplets.DropletResource;
+import org.cloudfoundry.client.v3.droplets.DropletState;
+import org.cloudfoundry.client.v3.packages.*;
+import org.cloudfoundry.client.v3.processes.*;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
@@ -559,6 +563,7 @@ public final class DefaultApplications implements Applications {
             .checkpoint();
     }
 
+    //Todo: start
     @Override
     public Mono<Void> start(StartApplicationRequest request) {
         return Mono
@@ -567,7 +572,7 @@ public final class DefaultApplications implements Applications {
                         Mono.just(cloudFoundryClient),
                         getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STARTED))
                 )))
-                .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStartupTimeout())))
+                .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout())))
                 .transform(OperationsLogging.log("Start Application"))
                 .checkpoint();
     }
@@ -1720,20 +1725,8 @@ public final class DefaultApplications implements Applications {
             .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
-    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
-        return requestApplicationStart(cloudFoundryClient, applicationId)
-                .then(waitApplicationV3ForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
-    }
-
     private static Mono<StopApplicationResponse> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestApplicationStop(cloudFoundryClient, applicationId);
-    }
-
-    private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV3()
-                .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
-                        .applicationId(applicationId)
-                        .build());
     }
 
     private static Mono<StopApplicationResponse> requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
@@ -1741,34 +1734,6 @@ public final class DefaultApplications implements Applications {
                 .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
                         .applicationId(applicationId)
                         .build());
-    }
-
-    private static Mono<Void> waitApplicationV3ForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
-        Duration timeout = Optional.ofNullable(startupTimeout).orElse(Duration.ofMinutes(5));
-
-        return requestApplicationInstancesV3(cloudFoundryClient, applicationId)
-                .map(GetApplicationResponse::getState)
-                .filter(isInstanceCompleteV3())
-                .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), timeout))
-                .filter(isStarted())
-                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
-                .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
-                .then();
-    }
-
-    private static Predicate<ApplicationState> isInstanceCompleteV3() {
-        return state -> ApplicationState.STARTED.equals(state) || ApplicationState.STOPPED.equals(state);
-    }
-
-    private static Mono<GetApplicationResponse> requestApplicationInstancesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV3()
-                .get(org.cloudfoundry.client.v3.applications.GetApplicationRequest.builder()
-                        .applicationId(applicationId)
-                        .build());
-    }
-
-    private static Predicate<ApplicationState> isStarted() {
-        return ApplicationState.STARTED::equals;
     }
 
     private static Mono<Void> stopAndStartApplication(CloudFoundryClient cloudFoundryClient, String applicationId, String name, PushApplicationManifestRequest request) {
@@ -2050,13 +2015,114 @@ public final class DefaultApplications implements Applications {
             .then();
     }
 
+    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return listPackages(cloudFoundryClient, applicationId)
+                .flatMapIterable(ListPackagesResponse::getResources)
+                .filter(resource -> resource.getState().equals(PackageState.READY))
+                .switchIfEmpty(ExceptionUtils.illegalState(""))
+                .single()
+                .flatMap(packageResource -> listPackageDroplets(cloudFoundryClient, packageResource.getId())
+                            .map(ListPackageDropletsResponse::getResources)
+                            .map(resources -> {
+                                final boolean isStaged = resources
+                                        .stream()
+                                        .anyMatch(res -> res.getState().equals(DropletState.STAGED));
+                               if (!isStaged) {
+                                   return createBuild(cloudFoundryClient, packageResource.getId())
+                                           .flatMap(createBuildResponse -> waitForBuildSucceed(cloudFoundryClient, application, createBuildResponse.getId(), stagingTimeout))
+                                           .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
+                                           .flatMap(buildResponse -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, buildResponse.getDroplet().getId()))
+                                           .then();
+                               }
+                               return Mono.empty();
+                            })
+                )
+                .then(requestApplicationStart(cloudFoundryClient, applicationId))
+                .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+    }
+
+    private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
+
+    private static Mono<ListPackagesResponse> listPackages(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.packages()
+                .list(ListPackagesRequest.builder()
+                        .applicationId(applicationId)
+                        .orderBy("-created_at")
+                        .perPage(1)
+                        .build());
+    }
+
+    private static Mono<ListPackageDropletsResponse> listPackageDroplets(CloudFoundryClient cloudFoundryClient, String packageId) {
+        return cloudFoundryClient.packages()
+                .listDroplets(ListPackageDropletsRequest.builder()
+                        .packageId(packageId)
+                        .state(DropletState.STAGED)
+                        .build());
+    }
+
+    private static Mono<ListApplicationProcessesResponse> getApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .listProcesses(ListApplicationProcessesRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
+
+    private static Mono<GetProcessStatisticsResponse> getProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        return cloudFoundryClient.processes()
+                .getStatistics(GetProcessStatisticsRequest.builder()
+                        .processId(processId)
+                        .build());
+
+    }
+
+    private static Mono<Void> waitApplicationForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
+        return getApplicationProcesses(cloudFoundryClient, applicationId)
+                .flatMapIterable(ListApplicationProcessesResponse::getResources)
+                .filter(resource -> resource.getType().equals("web"))
+                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
+                .single()
+                .flatMap(resource -> getProcessesStats(cloudFoundryClient, resource.getId()))
+                .flatMapIterable(GetProcessStatisticsResponse::getResources)
+                .map(ProcessStatisticsResource::getState)
+                .reduce(ProcessState.RUNNING, collectProcessStates())
+                .filter(isProcessCompleted())
+                .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
+                .filter(ProcessState.RUNNING::equals)
+                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
+                .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
+                .then();
+    }
+
+    private static BiFunction<ProcessState, ProcessState, ProcessState> collectProcessStates() {
+        return (totalState, instanceState) -> {
+            if (ProcessState.RUNNING.equals(instanceState) || ProcessState.RUNNING.equals(totalState)) {
+                return ProcessState.RUNNING;
+            }
+
+            if (ProcessState.DOWN.equals(instanceState) || ProcessState.CRASHED.equals(instanceState)) {
+                return ProcessState.DOWN;
+            }
+
+            return totalState;
+        };
+    }
+
+    private static Predicate<ProcessState> isProcessCompleted() {
+        return state -> ProcessState.RUNNING.equals(state) || ProcessState.CRASHED.equals(state);
+    }
+
     private static Mono<Void> restageApplicationV3(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
         return requestApplicationsCurrentDroplet(cloudFoundryClient, applicationId)
                 .map(response -> {
                     String link = response.getLinks().get("package").getHref();
                     return link.substring(link.lastIndexOf("/"));
                 })
-                .flatMap(packageId -> requestCreateBuild(cloudFoundryClient, packageId))
+                .flatMap(packageId -> createBuild(cloudFoundryClient, packageId))
                 .flatMap(response -> waitForBuildSucceed(cloudFoundryClient, application, applicationId, stagingTimeout))
                 .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
                 .flatMap(response -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, response.getDroplet().getId()))
@@ -2065,12 +2131,7 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<Void> restartApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
         return requestRestartApplication(cloudFoundryClient, applicationId)
-                .then(waitApplicationV3ForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
-    }
-
-    private static Mono<Void> waitApplicationV3ForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
-        //fetch implementation from start stop branch
-        return Mono.empty();
+                .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
     private static Mono<RestartApplicationResponse> requestRestartApplication(CloudFoundryClient cloudFoundryClient, String applicationId) {
@@ -2098,7 +2159,7 @@ public final class DefaultApplications implements Applications {
     }
 
 
-    private static Mono<CreateBuildResponse> requestCreateBuild(CloudFoundryClient cloudFoundryClient, String packageId) {
+    private static Mono<CreateBuildResponse> createBuild(CloudFoundryClient cloudFoundryClient, String packageId) {
         return cloudFoundryClient.builds()
                 .create(CreateBuildRequest.builder()
                         .getPackage(Relationship.builder()

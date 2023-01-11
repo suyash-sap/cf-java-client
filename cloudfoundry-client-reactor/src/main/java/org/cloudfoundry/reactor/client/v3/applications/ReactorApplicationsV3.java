@@ -180,12 +180,6 @@ public final class ReactorApplicationsV3 extends AbstractClientV3Operations impl
     }
 
     @Override
-    public Mono<RestartApplicationResponse> restart(RestartApplicationRequest request) {
-        return post(request, RestartApplicationResponse.class, builder -> builder.pathSegment("apps", request.getApplicationId(), "actions", "restart"))
-                .checkpoint();
-    }
-
-    @Override
     public Mono<StopApplicationResponse> stop(StopApplicationRequest request) {
         return post(request, StopApplicationResponse.class, builder -> builder.pathSegment("apps", request.getApplicationId(), "actions", "stop"))
             .checkpoint();

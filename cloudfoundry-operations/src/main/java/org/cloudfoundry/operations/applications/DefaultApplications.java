@@ -449,6 +449,7 @@ public final class DefaultApplications implements Applications {
             .checkpoint();
     }
 
+    //Todo: restage
     @Override
     public Mono<Void> restage(RestageApplicationRequest request) {
         return Mono
@@ -457,7 +458,7 @@ public final class DefaultApplications implements Applications {
                 Mono.just(cloudFoundryClient),
                 getApplicationId(cloudFoundryClient, request.getName(), spaceId)
             )))
-            .flatMap(function((cloudFoundryClient, applicationId) -> restageApplication(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout
+            .flatMap(function((cloudFoundryClient, applicationId) -> restageApplicationV3(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout
                 ())))
             .transform(OperationsLogging.log("Restage Application"))
             .checkpoint();
@@ -471,7 +472,7 @@ public final class DefaultApplications implements Applications {
                         Mono.just(cloudFoundryClient),
                         getApplicationIdV3(cloudFoundryClient, request.getName(), spaceId)
                 )))
-                .flatMap(function((cloudFoundryClient, applicationId) -> restartApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStartupTimeout
+                .flatMap(function((cloudFoundryClient, applicationId) -> restartApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout
                         ())))
                 .transform(OperationsLogging.log("Restart Application"))
                 .checkpoint();
@@ -1725,17 +1726,6 @@ public final class DefaultApplications implements Applications {
             .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
 
-    private static Mono<StopApplicationResponse> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestApplicationStop(cloudFoundryClient, applicationId);
-    }
-
-    private static Mono<StopApplicationResponse> requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV3()
-                .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
-                        .applicationId(applicationId)
-                        .build());
-    }
-
     private static Mono<Void> stopAndStartApplication(CloudFoundryClient cloudFoundryClient, String applicationId, String name, PushApplicationManifestRequest request) {
         return stopApplication(cloudFoundryClient, applicationId)
             .filter(resource -> shouldStartApplication(request, resource))
@@ -2089,7 +2079,7 @@ public final class DefaultApplications implements Applications {
                 .flatMap(resource -> getProcessesStats(cloudFoundryClient, resource.getId()))
                 .flatMapIterable(GetProcessStatisticsResponse::getResources)
                 .map(ProcessStatisticsResource::getState)
-                .reduce(ProcessState.RUNNING, collectProcessStates())
+                .reduce(ProcessState.DOWN, collectProcessStates())
                 .filter(isProcessCompleted())
                 .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
                 .filter(ProcessState.RUNNING::equals)
@@ -2126,19 +2116,13 @@ public final class DefaultApplications implements Applications {
                 .flatMap(response -> waitForBuildSucceed(cloudFoundryClient, application, applicationId, stagingTimeout))
                 .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
                 .flatMap(response -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, response.getDroplet().getId()))
-                .then(restartApplicationV3AndWait(cloudFoundryClient, application, applicationId, startupTimeout));
+                .then(restartApplicationV3AndWait(cloudFoundryClient, application, applicationId, stagingTimeout, startupTimeout));
     }
 
-    private static Mono<Void> restartApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
-        return requestRestartApplication(cloudFoundryClient, applicationId)
-                .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
-    }
 
-    private static Mono<RestartApplicationResponse> requestRestartApplication(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV3()
-                .restart(org.cloudfoundry.client.v3.applications.RestartApplicationRequest.builder()
-                        .applicationId(applicationId)
-                        .build());
+    private static Mono<Void> restartApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return stopApplicationV3(cloudFoundryClient, applicationId)
+                .then(startApplicationV3AndWait(cloudFoundryClient, application, applicationId, stagingTimeout, startupTimeout));
     }
 
     private static Mono<SetApplicationCurrentDropletResponse> requestSetApplicationCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId, String dropletId) {
@@ -2187,6 +2171,17 @@ public final class DefaultApplications implements Applications {
                         .buildId(buildId)
                         .build())
                 .cast(GetBuildResponse.class);
+    }
+
+    private static Mono<StopApplicationResponse> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestApplicationStop(cloudFoundryClient, applicationId);
+    }
+
+    private static Mono<StopApplicationResponse> requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
     }
 
     private static Predicate<BuildState> isBuildCompleted() {

@@ -2053,32 +2053,11 @@ public final class DefaultApplications implements Applications {
                 .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
                 .flatMap(resource -> requestGetProcessesStats(cloudFoundryClient, resource.getId()))
                 .flatMapIterable(GetProcessStatisticsResponse::getResources)
-                .map(ProcessStatisticsResource::getState)
-                .reduce(ProcessState.DOWN, collectProcessStates())
-                .filter(isProcessCompleted())
+                .hasElements()
+                .flatMap(it -> it ? Mono.empty() : Mono.just(false))
                 .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
-                .filter(ProcessState.RUNNING::equals)
-                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
                 .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
                 .then();
-    }
-
-    private static BiFunction<ProcessState, ProcessState, ProcessState> collectProcessStates() {
-        return (totalState, instanceState) -> {
-            if (ProcessState.RUNNING.equals(instanceState) || ProcessState.RUNNING.equals(totalState)) {
-                return ProcessState.RUNNING;
-            }
-
-            if (ProcessState.DOWN.equals(instanceState) || ProcessState.CRASHED.equals(instanceState)) {
-                return ProcessState.DOWN;
-            }
-
-            return totalState;
-        };
-    }
-
-    private static Predicate<ProcessState> isProcessCompleted() {
-        return state -> ProcessState.RUNNING.equals(state) || ProcessState.CRASHED.equals(state);
     }
 
     private static Mono<Void> restageApplication(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {

@@ -21,6 +21,7 @@ import org.cloudfoundry.client.v2.applications.ApplicationResource;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationPrivateDomainsRequest;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesRequest;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainResource;
+import org.cloudfoundry.client.v2.routes.DeleteRouteResponse;
 import org.cloudfoundry.client.v2.routes.ListRouteApplicationsRequest;
 import org.cloudfoundry.client.v2.routes.RouteEntity;
 import org.cloudfoundry.client.v2.serviceinstances.UnionServiceInstanceResource;
@@ -37,6 +38,7 @@ import org.cloudfoundry.client.v3.domains.CheckReservedRoutesResponse;
 import org.cloudfoundry.client.v3.domains.DomainResource;
 import org.cloudfoundry.client.v3.domains.ListDomainsRequest;
 import org.cloudfoundry.client.v3.routes.Application;
+import org.cloudfoundry.client.v3.routes.CreateRouteResponse;
 import org.cloudfoundry.client.v3.routes.Destination;
 import org.cloudfoundry.client.v3.routes.InsertRouteDestinationsRequest;
 import org.cloudfoundry.client.v3.routes.InsertRouteDestinationsResponse;
@@ -103,7 +105,7 @@ public final class DefaultRoutes implements Routes {
             )))
             .flatMap(function((cloudFoundryClient, spaceId, domainId) ->
                 requestCreateRoute(cloudFoundryClient, domainId, request.getHost(), request.getPath(), request.getPort(), spaceId)
-                    .map(RouteResource::getPort)
+                    .map(CreateRouteResponse::getPort)
             ))
             .transform(OperationsLogging.log("Create Route"))
             .checkpoint();
@@ -119,7 +121,7 @@ public final class DefaultRoutes implements Routes {
                 getDomainId(cloudFoundryClient, organizationId, request.getDomain())
                     .flatMap(domainId -> getRouteId(cloudFoundryClient, request.getHost(), request.getDomain(), domainId, request.getPath(), request.getPort()))
             )))
-            .flatMap(function(DefaultRoutes::deleteRoute))
+            .flatMap(function(DefaultRoutes::deleteRouteV3))
             .transform(OperationsLogging.log("Delete Route"))
             .checkpoint();
     }
@@ -171,10 +173,10 @@ public final class DefaultRoutes implements Routes {
             .zip(this.cloudFoundryClient, this.organizationId, this.spaceId)
             .flatMap(function((cloudFoundryClient, organizationId, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getOrCreateRoute(cloudFoundryClient, organizationId, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort()),
-                getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId)
-            )))
-            .flatMap(function((cloudFoundryClient, routeResource, applicationId) -> requestAssociateRoute(cloudFoundryClient, applicationId, routeResource.getId())))
+                getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId),
+                getOrCreateRoute(cloudFoundryClient, organizationId, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort())
+                )))
+            .flatMap(function(DefaultRoutes::requestAssociateRoute))
             .then(Mono.justOrEmpty(request.getPort()))
             .transform(OperationsLogging.log("Map Route"))
             .checkpoint();
@@ -188,7 +190,7 @@ public final class DefaultRoutes implements Routes {
                 Mono.just(cloudFoundryClient),
                 getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId),
                 getDomainId(cloudFoundryClient, organizationId, request.getDomain())
-                    .flatMap(domainId -> getRoute(cloudFoundryClient,domainId,request.getHost(),request.getPath(),request.getPort()))
+                    .flatMap(domainId -> getRoute(cloudFoundryClient,domainId,request.getDomain(),request.getHost(),request.getPath(),request.getPort()))
             )))
             .flatMap(function((cloudFoundryClient,applicationId,route) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
@@ -198,6 +200,11 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function(DefaultRoutes::requestRemoveRouteFromApplication))
             .transform(OperationsLogging.log("Unmap Route"))
             .checkpoint();
+    }
+
+    private static Mono<Void> deleteRouteV3(CloudFoundryClient cloudFoundryClient, Duration completionTimeout, String routeId) {
+        return requestDeleteRouteV3(cloudFoundryClient, routeId)
+            .flatMap(job -> JobUtils.waitForCompletion(cloudFoundryClient, completionTimeout, job));
     }
 
     private static Mono<Void> deleteRoute(CloudFoundryClient cloudFoundryClient, Duration completionTimeout, String routeId) {
@@ -267,10 +274,11 @@ public final class DefaultRoutes implements Routes {
             .map(DomainResource::getId);
     }
 
-    private static Mono<RouteResource> getOrCreateRoute(CloudFoundryClient cloudFoundryClient, String organizationId, String spaceId, String domain, String host, String path, Integer port) {
+    private static Mono<String> getOrCreateRoute(CloudFoundryClient cloudFoundryClient, String organizationId, String spaceId, String domain, String host, String path, Integer port) {
         return getDomainId(cloudFoundryClient, organizationId, domain)
-            .flatMap(domainId -> getRoute(cloudFoundryClient, domainId, host, path, port)
-                .switchIfEmpty(requestCreateRoute(cloudFoundryClient, domainId, host, path, port, spaceId)));
+            .flatMap(domainId -> getRoute(cloudFoundryClient, domainId, host, path, port).map(routeResource -> routeResource.getId())
+                .switchIfEmpty(requestCreateRoute(cloudFoundryClient, domainId, host, path, port, spaceId)
+                    .map(CreateRouteResponse::getId)));
     }
 
     private static Mono<RouteResource> getRoute(CloudFoundryClient cloudFoundryClient, String domainId, String domain, String host, String path, Integer port) {
@@ -411,7 +419,7 @@ public final class DefaultRoutes implements Routes {
                 .build());
     }
 
-    private static Mono<RouteResource> requestCreateRoute(CloudFoundryClient cloudFoundryClient, String domainId, String host, String path, Integer port, String spaceId) {
+    private static Mono<CreateRouteResponse> requestCreateRoute(CloudFoundryClient cloudFoundryClient, String domainId, String host, String path, Integer port, String spaceId) {
 
         org.cloudfoundry.client.v3.routes.CreateRouteRequest.Builder builder = org.cloudfoundry.client.v3.routes.CreateRouteRequest.builder();
 
@@ -422,7 +430,7 @@ public final class DefaultRoutes implements Routes {
             builder.path(path);
         }
         return cloudFoundryClient.routesV3()
-            .create(org.cloudfoundry.client.v3.routes.CreateRouteRequest.builder()
+            .create(builder
                 .relationships(RouteRelationships.builder()
                     .domain(ToOneRelationship.builder()
                         .data(Relationship.builder()
@@ -435,11 +443,18 @@ public final class DefaultRoutes implements Routes {
                             .build())
                         .build())
                     .build())
-                .build())
-            .cast(RouteResource.class);
+                .build());
     }
 
-    private static Mono<String> requestDeleteRoute(CloudFoundryClient cloudFoundryClient, String routeId) {
+    private static Mono<DeleteRouteResponse> requestDeleteRoute(CloudFoundryClient cloudFoundryClient, String routeId) {
+        return cloudFoundryClient.routes()
+            .delete(org.cloudfoundry.client.v2.routes.DeleteRouteRequest.builder()
+                .async(true)
+                .routeId(routeId)
+                .build());
+    }
+
+    private static Mono<String> requestDeleteRouteV3(CloudFoundryClient cloudFoundryClient, String routeId) {
         return cloudFoundryClient.routesV3()
             .delete(org.cloudfoundry.client.v3.routes.DeleteRouteRequest.builder()
                 .routeId(routeId)
@@ -508,9 +523,9 @@ public final class DefaultRoutes implements Routes {
     private static Flux<RouteResource> requestRoutes(CloudFoundryClient cloudFoundryClient, String domainId, String host, String path, Integer port) {
         return requestRoutesV3(cloudFoundryClient, builder -> builder
             .domainId(domainId)
-            .hosts(Optional.ofNullable(host).map(Collections::singletonList).orElse(null))
-            .paths(Optional.ofNullable(path).map(Collections::singletonList).orElse(null))
-            .port(Optional.ofNullable(port).orElse(null))
+            .ports(Optional.ofNullable(port).map(Collections::singletonList).orElse(Collections.emptyList()))
+            .hosts(Optional.ofNullable(host).map(Collections::singletonList).orElse(Collections.emptyList()))
+            .paths(Optional.ofNullable(path).map(Collections::singletonList).orElse(Collections.emptyList()))
         );
     }
 

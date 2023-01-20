@@ -109,6 +109,7 @@ import org.cloudfoundry.client.v3.Lifecycle;
 import org.cloudfoundry.client.v3.applications.ApplicationState;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
 import org.cloudfoundry.client.v3.applications.ListApplicationsResponse;
+import org.cloudfoundry.client.v3.applications.StartApplicationResponse;
 import org.cloudfoundry.client.v3.droplets.DropletResource;
 import org.cloudfoundry.client.v3.droplets.DropletState;
 import org.cloudfoundry.client.v3.packages.*;
@@ -2742,6 +2743,8 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
         requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
         requestListPackages(this.cloudFoundryClient, "test-application-id");
         requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+
         requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
         requestGetApplication(this.cloudFoundryClient, "test-application-id");
         requestApplicationInstancesFailingPartial(this.cloudFoundryClient, "test-application-id");
@@ -2782,6 +2785,17 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                     .resource(fill(DropletResource.builder())
                         .state(DropletState.STAGED)
                         .build())
+                    .build()));
+    }
+
+    private static void requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                .applicationId(applicationId)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(StartApplicationResponse.builder())
+                    .id(applicationId)
                     .build()));
     }
 

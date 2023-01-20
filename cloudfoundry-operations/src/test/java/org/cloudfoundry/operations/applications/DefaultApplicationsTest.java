@@ -109,6 +109,9 @@ import org.cloudfoundry.client.v3.Lifecycle;
 import org.cloudfoundry.client.v3.applications.ApplicationState;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
 import org.cloudfoundry.client.v3.applications.ListApplicationsResponse;
+import org.cloudfoundry.client.v3.droplets.DropletResource;
+import org.cloudfoundry.client.v3.droplets.DropletState;
+import org.cloudfoundry.client.v3.packages.*;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
@@ -2733,9 +2736,12 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             .verify(Duration.ofSeconds(5));
     }
 
+    //todo: start tests
     @Test
     public void startApplicationFailurePartial() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
         requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
         requestGetApplication(this.cloudFoundryClient, "test-application-id");
         requestApplicationInstancesFailingPartial(this.cloudFoundryClient, "test-application-id");
@@ -2747,6 +2753,36 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
             .expectComplete()
             .verify(Duration.ofSeconds(5));
+    }
+
+    private static void requestListPackages(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.packages()
+            .list(ListPackagesRequest.builder()
+                .applicationId(applicationId)
+                .orderBy("-created_at")
+                .perPage(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListPackagesResponse.builder())
+                    .resources(fill(PackageResource.builder())
+                        .id("package-resource-id")
+                        .state(PackageState.READY)
+                        .build())
+                    .build()));
+    }
+
+    private static void requestListPackageDroplets(CloudFoundryClient cloudFoundryClient, String packageResourceId) {
+        when(cloudFoundryClient.packages()
+            .listDroplets(ListPackageDropletsRequest.builder()
+                .packageId(packageResourceId)
+                .state(DropletState.STAGED)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListPackageDropletsResponse.builder())
+                    .resource(fill(DropletResource.builder())
+                        .state(DropletState.STAGED)
+                        .build())
+                    .build()));
     }
 
     @Test

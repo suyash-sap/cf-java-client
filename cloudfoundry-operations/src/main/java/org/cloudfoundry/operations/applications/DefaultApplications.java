@@ -1984,7 +1984,6 @@ public final class DefaultApplications implements Applications {
                 .filter(resource -> resource.getState().equals(PackageState.READY))
                 .singleOrEmpty()
                 .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-                .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
                 .flatMap(packageResource -> requestListPackageDroplets(cloudFoundryClient, packageResource.getId())
                             .map(response -> response.getResources()
                                     .stream()

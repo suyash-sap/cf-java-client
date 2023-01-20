@@ -1982,25 +1982,20 @@ public final class DefaultApplications implements Applications {
         return requestListPackages(cloudFoundryClient, applicationId)
                 .flatMapIterable(ListPackagesResponse::getResources)
                 .filter(resource -> resource.getState().equals(PackageState.READY))
+                .singleOrEmpty()
                 .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-                .single()
                 .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
                 .flatMap(packageResource -> requestListPackageDroplets(cloudFoundryClient, packageResource.getId())
-                            .map(ListPackageDropletsResponse::getResources)
-                            .map(resources -> {
-                                final boolean isStaged = resources
-                                        .stream()
-                                        .anyMatch(res -> res.getState().equals(DropletState.STAGED));
-                               if (!isStaged) {
-                                   return requestCreateBuild(cloudFoundryClient, packageResource.getId())
+                            .map(response -> response.getResources()
+                                    .stream()
+                                    .anyMatch(res -> res.getState().equals(DropletState.STAGED)))
+                            .map(isStaged -> !isStaged
+                                    ? requestCreateBuild(cloudFoundryClient, packageResource.getId())
                                            .flatMap(createBuildResponse -> waitForBuildSucceed(cloudFoundryClient, application, createBuildResponse.getId(), stagingTimeout))
                                            .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
                                            .flatMap(buildResponse -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, buildResponse.getDroplet().getId()))
-                                           .then();
-                               }
-                               return Mono.empty();
-                            })
-                )
+                                           .then()
+                                    : Mono.empty()))
                 .then(requestApplicationStart(cloudFoundryClient, applicationId))
                 .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
     }
@@ -2048,9 +2043,8 @@ public final class DefaultApplications implements Applications {
         return requestGetApplicationProcesses(cloudFoundryClient, applicationId)
                 .flatMapIterable(ListApplicationProcessesResponse::getResources)
                 .filter(resource -> resource.getType().equals("web"))
+                .singleOrEmpty()
                 .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-                .single()
-                .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
                 .flatMap(resource -> requestGetProcessesStats(cloudFoundryClient, resource.getId()))
                 .flatMapIterable(GetProcessStatisticsResponse::getResources)
                 .hasElements()

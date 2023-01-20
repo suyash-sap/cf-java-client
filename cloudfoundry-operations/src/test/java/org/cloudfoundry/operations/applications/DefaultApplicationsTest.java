@@ -3343,6 +3343,21 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                     .build()));
     }
 
+    private static void requestApplicationsSpecificStateV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId, ApplicationState stateReturned) {
+        when(cloudFoundryClient.applicationsV3()
+            .list(ListApplicationsRequest.builder()
+                .name(application)
+                .spaceId(spaceId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListApplicationsResponse.builder())
+                    .resource(fill(org.cloudfoundry.client.v3.applications.ApplicationResource.builder())
+                        .state(stateReturned)
+                        .build())
+                    .build()));
+    }
+
     private static void requestApplicationsV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId, String applicationId) {
         when(cloudFoundryClient.applicationsV3()
             .list(ListApplicationsRequest.builder()

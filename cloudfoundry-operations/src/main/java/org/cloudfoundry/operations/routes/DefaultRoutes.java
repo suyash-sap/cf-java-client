@@ -174,7 +174,7 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function((cloudFoundryClient, organizationId, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId),
-                getOrCreateRouteId(cloudFoundryClient, organizationId, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort())
+                getOrCreateRouteId(cloudFoundryClient, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort())
                 )))
             .flatMap(function(DefaultRoutes::requestAssociateRoute))
             .then(Mono.justOrEmpty(request.getPort()))
@@ -273,7 +273,7 @@ public final class DefaultRoutes implements Routes {
             .map(DomainResource::getId);
     }
 
-    private static Mono<String> getOrCreateRouteId(CloudFoundryClient cloudFoundryClient, String organizationId, String spaceId, String domain, String host, String path, Integer port) {
+    private static Mono<String> getOrCreateRouteId(CloudFoundryClient cloudFoundryClient, String spaceId, String domain, String host, String path, Integer port) {
         return getDomainId(cloudFoundryClient, domain)
             .flatMap(domainId -> getRoute(cloudFoundryClient, domainId, host, path, port)
                 .map(RouteResource::getId)

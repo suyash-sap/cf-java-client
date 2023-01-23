@@ -304,6 +304,9 @@ public final class DefaultRoutes implements Routes {
     }
 
     private static Mono<String> getRouteDestinationId(RouteResource routeResource, String applicationId) {
+        if(routeResource.getDestinations() == null){
+            return Mono.empty();
+        }
         return routeResource.getDestinations().stream()
             .filter(destination -> destination.getApplication().getApplicationId().equals(applicationId))
             .map((destination -> Mono.just(destination.getDestinationId())))

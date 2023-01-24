@@ -2050,6 +2050,8 @@ public final class DefaultApplications implements Applications {
             .reduce(ProcessState.STARTING, collectProcessesStates())
             .filter(isProcessCompleted())
             .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
+            .filter(ProcessState.RUNNING::equals)
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
             .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
             .then();
     }

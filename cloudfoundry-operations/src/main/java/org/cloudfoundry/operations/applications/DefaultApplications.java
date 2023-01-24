@@ -87,6 +87,7 @@ import org.cloudfoundry.client.v3.Relationship;
 import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.*;
 import org.cloudfoundry.client.v3.builds.*;
+import org.cloudfoundry.client.v3.droplets.DropletResource;
 import org.cloudfoundry.client.v3.droplets.DropletState;
 import org.cloudfoundry.client.v3.packages.*;
 import org.cloudfoundry.client.v3.processes.*;
@@ -1979,24 +1980,13 @@ public final class DefaultApplications implements Applications {
     }
 
     private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
-        return requestListPackages(cloudFoundryClient, applicationId)
-                .flatMapIterable(ListPackagesResponse::getResources)
-                .filter(resource -> resource.getState().equals(PackageState.READY))
-                .singleOrEmpty()
-                .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-                .flatMap(packageResource -> requestListPackageDroplets(cloudFoundryClient, packageResource.getId())
-                            .map(response -> response.getResources()
-                                    .stream()
-                                    .anyMatch(res -> res.getState().equals(DropletState.STAGED)))
-                            .map(isStaged -> !isStaged
-                                    ? requestCreateBuild(cloudFoundryClient, packageResource.getId())
-                                           .flatMap(createBuildResponse -> waitForBuildSucceed(cloudFoundryClient, application, createBuildResponse.getId(), stagingTimeout))
-                                           .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
-                                           .flatMap(buildResponse -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, buildResponse.getDroplet().getId()))
-                                           .then()
-                                    : Mono.empty()))
+        return requestPackagesWithReadyState(cloudFoundryClient, applicationId)
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
+            .single()
+            .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
+            .flatMap(packageResource -> requestDropletsWithStagedState(cloudFoundryClient, packageResource.getId())
                 .then(requestApplicationStart(cloudFoundryClient, applicationId))
-                .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+                .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout)));
     }
 
     private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
@@ -2006,21 +1996,23 @@ public final class DefaultApplications implements Applications {
                         .build());
     }
 
-    private static Mono<ListPackagesResponse> requestListPackages(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.packages()
-                .list(ListPackagesRequest.builder()
-                        .applicationId(applicationId)
-                        .orderBy("-created_at")
-                        .perPage(1)
-                        .build());
+    private static Flux<PackageResource> requestPackagesWithReadyState(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.packages()
+            .list(ListPackagesRequest.builder()
+                .applicationId(applicationId)
+                .state(PackageState.READY)
+                .orderBy("-created_at")
+                .page(page)
+                .build()));
     }
 
-    private static Mono<ListPackageDropletsResponse> requestListPackageDroplets(CloudFoundryClient cloudFoundryClient, String packageId) {
-        return cloudFoundryClient.packages()
-                .listDroplets(ListPackageDropletsRequest.builder()
-                        .packageId(packageId)
-                        .state(DropletState.STAGED)
-                        .build());
+    private static Flux<DropletResource> requestDropletsWithStagedState(CloudFoundryClient cloudFoundryClient, String packageId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.packages()
+            .listDroplets(ListPackageDropletsRequest.builder()
+                .packageId(packageId)
+                .state(DropletState.STAGED)
+                .page(page)
+                .build()));
     }
 
     private static Mono<ListApplicationProcessesResponse> requestGetApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {

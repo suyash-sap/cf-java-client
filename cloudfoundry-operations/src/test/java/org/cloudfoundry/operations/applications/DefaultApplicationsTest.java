@@ -4296,8 +4296,9 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
         when(cloudFoundryClient.packages()
             .list(ListPackagesRequest.builder()
                 .applicationId(applicationId)
+                .state(PackageState.READY)
                 .orderBy("-created_at")
-                .perPage(1)
+                .page(1)
                 .build()))
             .thenReturn(Mono
                 .just(fill(ListPackagesResponse.builder())
@@ -4316,6 +4317,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             .listDroplets(ListPackageDropletsRequest.builder()
                 .packageId(packageResourceId)
                 .state(DropletState.STAGED)
+                .page(1)
                 .build()))
             .thenReturn(Mono
                 .just(fill(ListPackageDropletsResponse.builder())
@@ -4354,6 +4356,8 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
         when(cloudFoundryClient.applicationsV3()
             .listProcesses(ListApplicationProcessesRequest.builder()
                 .applicationId(applicationId)
+                .page(1)
+                .processId(applicationId)
                 .build()))
             .thenReturn(Mono
                 .just(fill(ListApplicationProcessesResponse.builder())

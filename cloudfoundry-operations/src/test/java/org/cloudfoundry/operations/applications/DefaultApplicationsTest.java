@@ -4474,18 +4474,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             ));
     }
 
-    private static void requestGetProcessesStatsTimeout(CloudFoundryClient cloudFoundryClient, String processId) {
-        when(cloudFoundryClient.processes()
-            .getStatistics(GetProcessStatisticsRequest.builder()
-                .processId(processId)
-                .build()))
-            .thenReturn(Mono
-                .just(fill(GetProcessStatisticsResponse.builder())
-                    .resource(fill(ProcessStatisticsResource.builder())
-                        .build())
-                    .build()));
-    }
-
     private static void requestApplicationsSpecificStateV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId, ApplicationState stateReturned) {
         when(cloudFoundryClient.applicationsV3()
             .list(ListApplicationsRequest.builder()

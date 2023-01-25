@@ -2083,7 +2083,7 @@ public final class DefaultApplications implements Applications {
             .singleOrEmpty()
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
             .flatMapMany(resource -> requestGetProcessesStates(cloudFoundryClient, resource.getId()))
-            .reduce(ProcessState.STARTING, collectProcessesStates())
+            .reduce(collectProcessesStates())
             .filter(isProcessCompleted())
             .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
             .filter(ProcessState.RUNNING::equals)
@@ -2094,11 +2094,18 @@ public final class DefaultApplications implements Applications {
 
     private static BiFunction<ProcessState, ProcessState, ProcessState> collectProcessesStates() {
         return (totalState, instanceState) -> {
-            if (ProcessState.RUNNING.equals(instanceState) || ProcessState.RUNNING.equals(totalState)) {
+            if (ProcessState.RUNNING.equals(instanceState) && ProcessState.RUNNING.equals(totalState) ||
+                ProcessState.RUNNING.equals(instanceState) && ProcessState.STARTING.equals(totalState) ||
+                ProcessState.RUNNING.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
                 return ProcessState.RUNNING;
             }
 
-            if (ProcessState.CRASHED.equals(instanceState) || ProcessState.DOWN.equals(instanceState)) {
+            if (ProcessState.STARTING.equals(instanceState) && ProcessState.STARTING.equals(totalState) ||
+                ProcessState.STARTING.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
+                return ProcessState.STARTING;
+            }
+
+            if (ProcessState.CRASHED.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
                 return ProcessState.CRASHED;
             }
 

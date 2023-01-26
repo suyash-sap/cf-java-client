@@ -593,9 +593,9 @@ public final class DefaultApplications implements Applications {
             .zip(this.cloudFoundryClient, this.spaceId)
             .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getApplicationIdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(STOPPED_STATE))
+                getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STOPPED))
             )))
-            .flatMap(function(DefaultApplications::stopApplication))
+            .flatMap(function(DefaultApplications::stopApplicationV3))
             .then()
             .transform(OperationsLogging.log("Stop Application"))
             .checkpoint();
@@ -2177,4 +2177,14 @@ public final class DefaultApplications implements Applications {
         return resource -> !expectedState.equals(resource.getState());
     }
 
+    private static Mono<StopApplicationResponse> stopApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestApplicationStop(cloudFoundryClient, applicationId);
+    }
+
+    private static Mono<StopApplicationResponse> requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+                .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
+                        .applicationId(applicationId)
+                        .build());
+    }
 }

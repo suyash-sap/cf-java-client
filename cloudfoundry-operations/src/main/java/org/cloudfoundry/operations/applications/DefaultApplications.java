@@ -1701,9 +1701,10 @@ public final class DefaultApplications implements Applications {
     }
 
     private static Mono<Void> restageApplication(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
-        return requestRestageApplication(cloudFoundryClient, applicationId)
-            .flatMap(response -> waitForStaging(cloudFoundryClient, application, applicationId, stagingTimeout))
-            .then(waitForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+        return requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationId)
+                .map(DefaultApplications::extractPackageId)
+                .flatMap(packageId -> requestCreateBuildAndSetCurrentDroplet(cloudFoundryClient, application, applicationId, stagingTimeout, packageId))
+                .then(restartApplicationAndWait(cloudFoundryClient, application, applicationId, stagingTimeout, startupTimeout));
     }
 
     private static Mono<Void> restartApplication(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
@@ -2186,5 +2187,15 @@ public final class DefaultApplications implements Applications {
                 .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
                         .applicationId(applicationId)
                         .build());
+    }
+
+    private static String extractPackageId(GetApplicationCurrentDropletResponse response) {
+        String link = response.getLinks().get("package").getHref();
+        return link.substring(link.lastIndexOf("/"));
+    }
+
+    private static Mono<Void> restartApplicationAndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return stopApplicationV3(cloudFoundryClient, applicationId)
+                .then(startApplicationV3AndWait(cloudFoundryClient, application, applicationId, stagingTimeout, startupTimeout));
     }
 }

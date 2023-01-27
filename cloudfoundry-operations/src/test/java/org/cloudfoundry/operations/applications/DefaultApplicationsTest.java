@@ -2445,15 +2445,17 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void restartFailurePartial() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-app-name", TEST_SPACE_ID, "STARTED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesFailingPartial(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestApplicationStop(this.cloudFoundryClient, "test-application-id");
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestFailedPartiallyProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .restart(RestartApplicationRequest.builder()
-                .name("test-app-name")
+                .name("test-application-name")
                 .build()))
             .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
             .expectComplete()
@@ -2462,18 +2464,20 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void restartFailureTotal() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-app-name", TEST_SPACE_ID, "STARTED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesFailingTotal(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestApplicationStop(this.cloudFoundryClient, "test-application-id");
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestFailedTotallyProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .restart(RestartApplicationRequest.builder()
-                .name("test-app-name")
+                .name("test-application-name")
                 .build()))
             .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
-            .consumeErrorWith(t -> assertThat(t).isInstanceOf(IllegalStateException.class).hasMessage("Application test-app-name failed during start"))
+            .consumeErrorWith(t -> assertThat(t).isInstanceOf(IllegalStateException.class).hasMessage("Application test-application-name failed during start"))
             .verify(Duration.ofSeconds(5));
     }
 
@@ -2494,7 +2498,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void restartNoApp() {
-        requestApplicationsEmpty(this.cloudFoundryClient, "test-non-existent-app-name", TEST_SPACE_ID);
+        requestApplicationsEmptyV3(this.cloudFoundryClient, "test-non-existent-app-name", TEST_SPACE_ID);
 
         this.applications
             .restart(RestartApplicationRequest.builder()
@@ -2505,7 +2509,9 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             .verify(Duration.ofSeconds(5));
     }
 
-    @Test
+
+    //No way to reimplement according to V3, no ways to created unknown ApplicationState due to ApplicationState is validated enum
+    //@Test
     public void restartNotStartedAndNotStopped() {
         requestApplicationsSpecificState(this.cloudFoundryClient, "test-app-name", TEST_SPACE_ID, "unknown-state");
         requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STOPPED");
@@ -2524,15 +2530,17 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void restartStarted() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-app-name", TEST_SPACE_ID, "STARTED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesRunning(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestApplicationStop(this.cloudFoundryClient, "test-application-id");
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestTotalRunningProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .restart(RestartApplicationRequest.builder()
-                .name("test-app-name")
+                .name("test-application-name")
                 .build()))
             .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
             .expectComplete()
@@ -2541,14 +2549,16 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void restartStopped() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-app-name", TEST_SPACE_ID, "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesRunning(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestTotalRunningProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .restart(RestartApplicationRequest.builder()
-                .name("test-app-name")
+                .name("test-application-name")
                 .build()))
             .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
             .expectComplete()

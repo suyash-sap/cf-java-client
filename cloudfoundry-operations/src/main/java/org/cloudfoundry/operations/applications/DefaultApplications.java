@@ -1735,9 +1735,9 @@ public final class DefaultApplications implements Applications {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STOPPED_STATE);
     }
 
-    private static Mono<ApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, ApplicationResource resource) {
+    private static Mono<Application> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, ApplicationResource resource) {
         return isNotIn(resource, ApplicationState.STOPPED)
-            ? stopApplicationV3(cloudFoundryClient, resource.getId()).cast(ApplicationResource.class)
+            ? stopApplicationV3(cloudFoundryClient, resource.getId()).cast(Application.class)
             : Mono.just(resource);
     }
 

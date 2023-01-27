@@ -476,13 +476,13 @@ public final class DefaultApplications implements Applications {
             .zip(this.cloudFoundryClient, this.spaceId)
             .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getApplication(cloudFoundryClient, request.getName(), spaceId)
+                getApplicationV3(cloudFoundryClient, request.getName(), spaceId)
             )))
             .flatMap(function((cloudFoundryClient, resource) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 stopApplicationIfNotStopped(cloudFoundryClient, resource)
             )))
-            .flatMap(function((cloudFoundryClient, stoppedApplication) -> startApplicationAndWait(cloudFoundryClient, request.getName(), ResourceUtils.getId(stoppedApplication),
+            .flatMap(function((cloudFoundryClient, stoppedApplication) -> startApplicationV3AndWait(cloudFoundryClient, stoppedApplication.getName(), stoppedApplication.getId(),
                 request.getStagingTimeout(), request.getStartupTimeout())))
             .transform(OperationsLogging.log("Restart Application"))
             .checkpoint();
@@ -1102,12 +1102,8 @@ public final class DefaultApplications implements Applications {
         return state -> "RUNNING".equals(state) || "FAILED".equals(state);
     }
 
-    private static Predicate<AbstractApplicationResource> isNotIn(String expectedState) {
-        return resource -> isNotIn(resource, expectedState);
-    }
-
-    private static boolean isNotIn(AbstractApplicationResource resource, String expectedState) {
-        return !expectedState.equals(ResourceUtils.getEntity(resource).getState());
+    private static boolean isNotIn(ApplicationResource resource, ApplicationState expectedState) {
+        return !expectedState.equals(resource.getState());
     }
 
     private static boolean isRestartRequired(ScaleApplicationRequest request, AbstractApplicationResource applicationResource) {
@@ -1739,8 +1735,10 @@ public final class DefaultApplications implements Applications {
         return requestUpdateApplicationState(cloudFoundryClient, applicationId, STOPPED_STATE);
     }
 
-    private static Mono<AbstractApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, AbstractApplicationResource resource) {
-        return isNotIn(resource, STOPPED_STATE) ? stopApplication(cloudFoundryClient, ResourceUtils.getId(resource)) : Mono.just(resource);
+    private static Mono<ApplicationResource> stopApplicationIfNotStopped(CloudFoundryClient cloudFoundryClient, ApplicationResource resource) {
+        return isNotIn(resource, ApplicationState.STOPPED)
+            ? stopApplicationV3(cloudFoundryClient, resource.getId()).cast(ApplicationResource.class)
+            : Mono.just(resource);
     }
 
     private static ApplicationDetail toApplicationDetail(List<String> buildpacks, SummaryApplicationResponse summaryApplicationResponse, GetStackResponse getStackResponse,
@@ -2186,5 +2184,10 @@ public final class DefaultApplications implements Applications {
                 .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
                         .applicationId(applicationId)
                         .build());
+    }
+
+    private static Mono<Void> restartApplicationAndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return stopApplicationV3(cloudFoundryClient, applicationId)
+            .then(startApplicationV3AndWait(cloudFoundryClient, application, applicationId, stagingTimeout, startupTimeout));
     }
 }

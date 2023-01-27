@@ -462,7 +462,7 @@ public final class DefaultApplications implements Applications {
             .zip(this.cloudFoundryClient, this.spaceId)
             .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getApplicationId(cloudFoundryClient, request.getName(), spaceId)
+                getApplicationIdV3(cloudFoundryClient, request.getName(), spaceId)
             )))
             .flatMap(function((cloudFoundryClient, applicationId) -> restageApplication(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout
                 ())))
@@ -2029,7 +2029,7 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<Void> requestCreateBuildAndSetCurrentDroplet(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, String packageId) {
         return requestCreateBuild(cloudFoundryClient, packageId)
-            .flatMap(response -> waitForBuildSucceed(cloudFoundryClient, application, applicationId, stagingTimeout))
+            .flatMap(response -> waitForBuildSucceed(cloudFoundryClient, application, response.getId(), stagingTimeout))
             .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
             .flatMap(response -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, response.getDroplet().getId()))
             .then();
@@ -2191,7 +2191,7 @@ public final class DefaultApplications implements Applications {
 
     private static String extractPackageId(GetApplicationCurrentDropletResponse response) {
         String link = response.getLinks().get("package").getHref();
-        return link.substring(link.lastIndexOf("/"));
+        return link.substring(link.lastIndexOf("/") + 1);
     }
 
     private static Mono<Void> restartApplicationAndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {

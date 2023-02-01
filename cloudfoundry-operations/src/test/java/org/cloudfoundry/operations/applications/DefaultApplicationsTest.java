@@ -2755,6 +2755,24 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
     }
 
     @Test
+    public void startApplicationMultipleStagedPackages() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackagesMultiple(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestFailedPartiallyProcessesStats(this.cloudFoundryClient, "process-id");
+
+        StepVerifier.withVirtualTime(() -> this.applications
+                .start(StartApplicationRequest.builder()
+                    .name("test-application-name")
+                    .build()))
+            .then(() -> VirtualTimeScheduler.get().advanceTimeBy(Duration.ofSeconds(3)))
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
     public void startApplicationFailureTotal() {
         requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
         requestListPackages(this.cloudFoundryClient, "test-application-id");
@@ -4302,6 +4320,33 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .just(fill(ListPackagesResponse.builder())
                     .resources(PackageResource.builder()
                         .id("package-resource-id")
+                        .state(PackageState.READY)
+                        .createdAt(new Date().toString())
+                        .data(new PackageData() {})
+                        .type(PackageType.DOCKER)
+                        .build())
+                    .build()));
+    }
+
+    private static void requestListPackagesMultiple(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.packages()
+            .list(ListPackagesRequest.builder()
+                .applicationId(applicationId)
+                .state(PackageState.READY)
+                .orderBy("-created_at")
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListPackagesResponse.builder())
+                    .resources(PackageResource.builder()
+                        .id("package-resource-id")
+                        .state(PackageState.READY)
+                        .createdAt(new Date().toString())
+                        .data(new PackageData() {})
+                        .type(PackageType.DOCKER)
+                        .build())
+                    .resources(PackageResource.builder()
+                        .id("package-resource-id1")
                         .state(PackageState.READY)
                         .createdAt(new Date().toString())
                         .data(new PackageData() {})

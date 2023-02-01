@@ -2016,8 +2016,8 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
         return requestPackagesWithReadyState(cloudFoundryClient, applicationId)
+            .next()
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-            .single()
             .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
             .flatMapMany(packageResource -> requestDropletsWithStagedState(cloudFoundryClient, packageResource.getId())
                 .switchIfEmpty(requestCreateBuildAndSetCurrentDroplet(cloudFoundryClient, application, applicationId, stagingTimeout, packageResource.getId())

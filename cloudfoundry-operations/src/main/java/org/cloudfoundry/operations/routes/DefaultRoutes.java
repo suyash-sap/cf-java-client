@@ -36,7 +36,7 @@ import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
 import org.cloudfoundry.client.v3.domains.CheckReservedRoutesRequest;
 import org.cloudfoundry.client.v3.domains.CheckReservedRoutesResponse;
 import org.cloudfoundry.client.v3.domains.DomainResource;
-import org.cloudfoundry.client.v3.domains.ListDomainsRequest;
+import org.cloudfoundry.client.v3.organizations.ListOrganizationDomainsRequest;
 import org.cloudfoundry.client.v3.routes.Application;
 import org.cloudfoundry.client.v3.routes.CreateRouteResponse;
 import org.cloudfoundry.client.v3.routes.Destination;
@@ -86,7 +86,7 @@ public final class DefaultRoutes implements Routes {
             .zip(this.cloudFoundryClient, this.organizationId)
             .flatMap(function((cloudFoundryClient, organizationId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getOptionalDomainId(cloudFoundryClient, request.getDomain())
+                getOptionalDomainId(cloudFoundryClient, organizationId, request.getDomain())
             )))
             .flatMap(function((cloudFoundryClient, domainId) -> requestRouteExists(cloudFoundryClient, domainId, request.getHost(), request.getPath())))
             .defaultIfEmpty(false)
@@ -101,7 +101,7 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function((cloudFoundryClient, organizationId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 getSpaceId(cloudFoundryClient, organizationId, request.getSpace()),
-                getDomainId(cloudFoundryClient, request.getDomain())
+                getDomainId(cloudFoundryClient, organizationId, request.getDomain())
             )))
             .flatMap(function((cloudFoundryClient, spaceId, domainId) ->
                 requestCreateRoute(cloudFoundryClient, domainId, request.getHost(), request.getPath(), request.getPort(), spaceId)
@@ -118,7 +118,7 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function((cloudFoundryClient, organizationId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 Mono.just(request.getCompletionTimeout()),
-                getDomainId(cloudFoundryClient,  request.getDomain())
+                getDomainId(cloudFoundryClient, organizationId,  request.getDomain())
                     .flatMap(domainId -> getRouteId(cloudFoundryClient, request.getHost(), request.getDomain(), domainId, request.getPath(), request.getPort()))
             )))
             .flatMap(function(DefaultRoutes::deleteRouteV3))
@@ -174,7 +174,7 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function((cloudFoundryClient, organizationId, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId),
-                getOrCreateRouteId(cloudFoundryClient, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort())
+                getOrCreateRouteId(cloudFoundryClient, organizationId, spaceId, request.getDomain(), request.getHost(), request.getPath(), request.getPort())
                 )))
             .flatMap(function(DefaultRoutes::requestAssociateRoute))
             .then(Mono.justOrEmpty(request.getPort()))
@@ -189,7 +189,7 @@ public final class DefaultRoutes implements Routes {
             .flatMap(function((cloudFoundryClient, organizationId, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
                 getApplicationId(cloudFoundryClient, request.getApplicationName(), spaceId),
-                getDomainId(cloudFoundryClient,  request.getDomain())
+                getDomainId(cloudFoundryClient, organizationId, request.getDomain())
                     .flatMap(domainId -> getRoute(cloudFoundryClient,domainId,request.getDomain(),request.getHost(),request.getPath(),request.getPort()))
             )))
             .flatMap(function((cloudFoundryClient,applicationId,route) -> Mono.zip(
@@ -248,14 +248,14 @@ public final class DefaultRoutes implements Routes {
             .collectList();
     }
 
-    private static Mono<DomainResource> getDomain(CloudFoundryClient cloudFoundryClient, String domain) {
-        return getDomains(cloudFoundryClient, domain)
+    private static Mono<DomainResource> getDomain(CloudFoundryClient cloudFoundryClient, String organizationId, String domain) {
+        return getDomains(cloudFoundryClient, organizationId, domain)
             .single()
             .onErrorResume(NoSuchElementException.class, t -> ExceptionUtils.illegalArgument("Domain %s does not exist", domain));
     }
 
-    private static Mono<String> getDomainId(CloudFoundryClient cloudFoundryClient, String domain) {
-        return getDomain(cloudFoundryClient, domain)
+    private static Mono<String> getDomainId(CloudFoundryClient cloudFoundryClient, String organizationId, String domain) {
+        return getDomain(cloudFoundryClient, organizationId, domain)
             .map(DomainResource::getId);
     }
 
@@ -263,18 +263,18 @@ public final class DefaultRoutes implements Routes {
         return Mono.just(domains.get(domainId));
     }
 
-    private static Flux<DomainResource> getDomains(CloudFoundryClient cloudFoundryClient, String domain) {
-        return requestDomains(cloudFoundryClient,domain);
+    private static Flux<DomainResource> getDomains(CloudFoundryClient cloudFoundryClient, String organizationId, String domain) {
+        return requestDomains(cloudFoundryClient,organizationId,domain);
     }
 
-    private static Mono<String> getOptionalDomainId(CloudFoundryClient cloudFoundryClient, String domain) {
-        return getDomains(cloudFoundryClient, domain)
+    private static Mono<String> getOptionalDomainId(CloudFoundryClient cloudFoundryClient, String organizationId, String domain) {
+        return getDomains(cloudFoundryClient, organizationId, domain)
             .singleOrEmpty()
             .map(DomainResource::getId);
     }
 
-    private static Mono<String> getOrCreateRouteId(CloudFoundryClient cloudFoundryClient, String spaceId, String domain, String host, String path, Integer port) {
-        return getDomainId(cloudFoundryClient, domain)
+    private static Mono<String> getOrCreateRouteId(CloudFoundryClient cloudFoundryClient, String organizationId, String spaceId, String domain, String host, String path, Integer port) {
+        return getDomainId(cloudFoundryClient, organizationId, domain)
             .flatMap(domainId -> getRoute(cloudFoundryClient, domainId, host, path, port)
                 .map(RouteResource::getId)
             .switchIfEmpty(requestCreateRoute(cloudFoundryClient, domainId, host, path, port, spaceId)
@@ -522,11 +522,12 @@ public final class DefaultRoutes implements Routes {
         );
     }
 
-    private static Flux<DomainResource> requestDomains(CloudFoundryClient cloudFoundryClient, String domain) {
+    private static Flux<DomainResource> requestDomains(CloudFoundryClient cloudFoundryClient, String organizationId, String domain) {
         return PaginationUtils
-            .requestClientV3Resources(page -> cloudFoundryClient.domainsV3()
-                .list(ListDomainsRequest.builder()
+            .requestClientV3Resources(page -> cloudFoundryClient.organizationsV3()
+                .listDomains(ListOrganizationDomainsRequest.builder()
                     .name(domain)
+                    .organizationId(organizationId)
                     .page(page)
                     .build()));
     }

@@ -44,6 +44,7 @@ import org.cloudfoundry.client.v2.users.Users;
 import org.cloudfoundry.client.v3.applications.ApplicationsV3;
 import org.cloudfoundry.client.v3.domains.DomainsV3;
 import org.cloudfoundry.client.v3.jobs.JobsV3;
+import org.cloudfoundry.client.v3.organizations.OrganizationsV3;
 import org.cloudfoundry.client.v3.routes.RoutesV3;
 import org.cloudfoundry.client.v3.spaces.SpacesV3;
 import org.cloudfoundry.client.v3.tasks.Tasks;
@@ -108,6 +109,8 @@ public abstract class AbstractOperationsTest {
 
     protected final Organizations organizations = mock(Organizations.class, RETURNS_SMART_NULLS);
 
+    protected final OrganizationsV3 organizationsV3 = mock(OrganizationsV3.class, RETURNS_SMART_NULLS);
+
     protected final PrivateDomains privateDomains = mock(PrivateDomains.class, RETURNS_SMART_NULLS);
 
     protected final ResourceMatch resourceMatch = mock(ResourceMatch.class, RETURNS_SMART_NULLS);
@@ -168,6 +171,7 @@ public abstract class AbstractOperationsTest {
         when(this.cloudFoundryClient.jobs()).thenReturn(this.jobs);
         when(this.cloudFoundryClient.jobsV3()).thenReturn(this.jobsV3);
         when(this.cloudFoundryClient.organizations()).thenReturn(this.organizations);
+        when(this.cloudFoundryClient.organizationsV3()).thenReturn(this.organizationsV3);
         when(this.cloudFoundryClient.organizationQuotaDefinitions()).thenReturn(this.organizationQuotaDefinitions);
         when(this.cloudFoundryClient.privateDomains()).thenReturn(this.privateDomains);
         when(this.cloudFoundryClient.resourceMatch()).thenReturn(this.resourceMatch);

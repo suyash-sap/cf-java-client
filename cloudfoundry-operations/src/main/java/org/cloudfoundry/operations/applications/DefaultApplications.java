@@ -2079,13 +2079,15 @@ public final class DefaultApplications implements Applications {
     }
 
     private static Mono<Void> waitApplicationForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
+        Duration timeout = Optional.ofNullable(startupTimeout).orElse(Duration.ofMinutes(5));
+
         return requestGetApplicationProcesses(cloudFoundryClient, applicationId)
             .singleOrEmpty()
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
             .flatMapMany(resource -> requestGetProcessesStates(cloudFoundryClient, resource.getId()))
             .reduce(collectProcessesStates())
             .filter(isProcessCompleted())
-            .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
+            .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), timeout))
             .filter(ProcessState.RUNNING::equals)
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
             .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))

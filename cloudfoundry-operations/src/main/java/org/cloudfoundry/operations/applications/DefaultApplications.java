@@ -64,6 +64,7 @@ import org.cloudfoundry.client.v3.packages.ListPackagesRequest;
 import org.cloudfoundry.client.v3.packages.PackageResource;
 import org.cloudfoundry.client.v3.packages.PackageState;
 import org.cloudfoundry.client.v3.processes.*;
+import org.cloudfoundry.client.v3.sidecars.SidecarResource;
 import org.cloudfoundry.client.v3.tasks.*;
 import org.cloudfoundry.doppler.*;
 import org.cloudfoundry.operations.util.OperationsLogging;
@@ -2027,6 +2028,14 @@ public final class DefaultApplications implements Applications {
             .getStatistics(GetProcessStatisticsRequest.builder()
                 .processId(processId)
                 .build());
+    }
+
+    private static Flux<SidecarResource> requestListProcessSidecars(CloudFoundryClient cloudFoundryClient, String processId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.processes()
+            .listSidecars(ListProcessSidecarsRequest.builder()
+                .processId(processId)
+                .page(page)
+                .build()));
     }
 
     private static Mono<Tuple5<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {

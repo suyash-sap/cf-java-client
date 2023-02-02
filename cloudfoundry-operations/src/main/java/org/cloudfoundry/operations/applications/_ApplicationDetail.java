@@ -52,4 +52,11 @@ abstract class _ApplicationDetail extends AbstractApplicationSummary {
      */
     abstract String getStack();
 
+    /**
+     * The sidecars
+     */
+    @AllowNulls
+    @Nullable
+    abstract List<String> getSidecars();
+
 }

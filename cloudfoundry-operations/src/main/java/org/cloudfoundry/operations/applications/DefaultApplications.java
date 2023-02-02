@@ -74,6 +74,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuple5;
+import reactor.util.function.Tuple6;
 import reactor.util.function.Tuples;
 
 import java.io.IOException;
@@ -2038,22 +2039,25 @@ public final class DefaultApplications implements Applications {
                 .build()));
     }
 
-    private static Mono<Tuple5<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {
+    private static Mono<Tuple6<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource, List<SidecarResource>>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {
         return Mono.zip(requestGetApplicationProcesses(cloudFoundryClient, applicationResource.getId())
                 .singleOrEmpty(),
             requestGetProcessesStats(cloudFoundryClient, applicationResource.getId()),
             requestGetApplicationRoutes(cloudFoundryClient, applicationResource.getId()).collectList(),
             requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationResource.getId()),
-            Mono.just(applicationResource));
+            Mono.just(applicationResource),
+            requestListProcessSidecars(cloudFoundryClient, applicationResource.getId()).collectList());
     }
 
     private static ApplicationDetail toApplicationDetail(ProcessResource processResource,
                                                          GetProcessStatisticsResponse processStatistics,
                                                          List<org.cloudfoundry.client.v3.routes.RouteResource> routeResources,
                                                          GetApplicationCurrentDropletResponse currentDroplet,
-                                                         ApplicationResource applicationResource) {
+                                                         ApplicationResource applicationResource,
+                                                         List<SidecarResource> sidecarResources) {
 
         return ApplicationDetail.builder()
+            .sidecars(toSidecarNames(sidecarResources))
             .buildpacks(toBuildpackNames(currentDroplet))
             .diskQuota(toDiskQuota(processStatistics))
             .runningInstances(toRunningInstancesAmount(processStatistics))
@@ -2068,6 +2072,13 @@ public final class DefaultApplications implements Applications {
             .stack(currentDroplet.getStack())
             .build();
 
+    }
+
+
+    private static List<String> toSidecarNames(List<SidecarResource> sidecarResources) {
+        return sidecarResources.stream()
+            .map(SidecarResource::getName)
+            .collect(Collectors.toList());
     }
 
     private static Iterable<String> toUrls(List<org.cloudfoundry.client.v3.routes.RouteResource> routeResources) {

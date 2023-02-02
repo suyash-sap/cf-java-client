@@ -2018,7 +2018,6 @@ public final class DefaultApplications implements Applications {
         return requestPackagesWithReadyState(cloudFoundryClient, applicationId)
             .next()
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
-            .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
             .flatMapMany(packageResource -> requestDropletsWithStagedState(cloudFoundryClient, packageResource.getId())
                 .switchIfEmpty(requestCreateBuildAndSetCurrentDroplet(cloudFoundryClient, application, applicationId, stagingTimeout, packageResource.getId())
                     .flatMapMany(response -> Flux.just(DropletResource.builder().build())))

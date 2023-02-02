@@ -16,18 +16,7 @@
 
 package org.cloudfoundry.reactor.client.v3.processes;
 
-import org.cloudfoundry.client.v3.processes.GetProcessRequest;
-import org.cloudfoundry.client.v3.processes.GetProcessResponse;
-import org.cloudfoundry.client.v3.processes.GetProcessStatisticsRequest;
-import org.cloudfoundry.client.v3.processes.GetProcessStatisticsResponse;
-import org.cloudfoundry.client.v3.processes.ListProcessesRequest;
-import org.cloudfoundry.client.v3.processes.ListProcessesResponse;
-import org.cloudfoundry.client.v3.processes.Processes;
-import org.cloudfoundry.client.v3.processes.ScaleProcessRequest;
-import org.cloudfoundry.client.v3.processes.ScaleProcessResponse;
-import org.cloudfoundry.client.v3.processes.TerminateProcessInstanceRequest;
-import org.cloudfoundry.client.v3.processes.UpdateProcessRequest;
-import org.cloudfoundry.client.v3.processes.UpdateProcessResponse;
+import org.cloudfoundry.client.v3.processes.*;
 import org.cloudfoundry.reactor.ConnectionContext;
 import org.cloudfoundry.reactor.TokenProvider;
 import org.cloudfoundry.reactor.client.v3.AbstractClientV3Operations;
@@ -61,6 +50,12 @@ public final class ReactorProcesses extends AbstractClientV3Operations implement
     @Override
     public Mono<GetProcessStatisticsResponse> getStatistics(GetProcessStatisticsRequest request) {
         return get(request, GetProcessStatisticsResponse.class, builder -> builder.pathSegment("processes", request.getProcessId(), "stats"))
+            .checkpoint();
+    }
+
+    @Override
+    public Mono<ListProcessSidecarsResponse> listSidecars(ListProcessSidecarsRequest request) {
+        return get(request, ListProcessSidecarsResponse.class, builder -> builder.pathSegment("processes", request.getProcessId(), "sidecars"))
             .checkpoint();
     }
 

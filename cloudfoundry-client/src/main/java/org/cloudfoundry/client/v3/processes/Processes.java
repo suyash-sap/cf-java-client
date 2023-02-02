@@ -39,6 +39,15 @@ public interface Processes {
      */
     Mono<GetProcessStatisticsResponse> getStatistics(GetProcessStatisticsRequest request);
 
+
+    /**
+     * Makes the <a href="https://v3-apidocs.cloudfoundry.org/version/3.131.0/index.html#list-sidecars-for-process">Get stats for a process</a> request
+     *
+     * @param request the Get Statistics for a Process request
+     * @return the response from the Get Statistics for a Process request
+     */
+    Mono<ListProcessSidecarsResponse> listSidecars(ListProcessSidecarsRequest request);
+
     /**
      * Makes the <a href="https://v3-apidocs.cloudfoundry.org/version/3.27.0/index.html#list-processes">List Process</a> request
      *

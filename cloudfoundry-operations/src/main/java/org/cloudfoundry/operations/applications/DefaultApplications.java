@@ -80,8 +80,8 @@ import reactor.util.function.Tuples;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -2120,9 +2120,8 @@ public final class DefaultApplications implements Applications {
 
     private static InstanceDetail toInstanceDetail(ProcessStatisticsResource resource) {
 
-        final String since = LocalDateTime.parse(resource.getUsage().getTime())
-            .minusSeconds(resource.getUptime())
-            .toString();
+        final String since = Instant.parse(resource.getUsage().getTime())
+            .minusSeconds(resource.getUptime()).toString();
 
         return InstanceDetail.builder()
             .index(String.valueOf(resource.getIndex()))

@@ -2066,7 +2066,7 @@ public final class DefaultApplications implements Applications {
     private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> getApplicationRoutesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestGetApplicationRoutes(cloudFoundryClient, applicationId)
             .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
-                t -> Flux.just(org.cloudfoundry.client.v3.routes.RouteResource.builder().build()));
+                t -> Flux.empty());
     }
 
     private static Mono<GetApplicationCurrentDropletResponse> getCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {

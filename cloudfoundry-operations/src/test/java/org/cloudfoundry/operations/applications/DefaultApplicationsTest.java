@@ -474,6 +474,37 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
     }
 
     @Test
+    public void getApplicationRoutesError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStats(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutesError(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecars(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .instanceDetail(fill(InstanceDetail.builder())
+                    .index("123")
+                    .state("RUNNING")
+                    .build())
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .sidecars("sidecar-name")
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
     public void getApplicationManifest() {
         requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
         requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
@@ -4610,6 +4641,19 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                                 .build())
                             .build())
                     .build()));
+    }
+
+    private static void requestGetApplicationRoutesError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listRoutes(org.cloudfoundry.client.v3.applications.ListApplicationRoutesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
     }
 
     private static void requestGetApplicationsCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {

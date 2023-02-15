@@ -105,6 +105,7 @@ import org.cloudfoundry.client.v2.stacks.ListStacksResponse;
 import org.cloudfoundry.client.v2.stacks.StackEntity;
 import org.cloudfoundry.client.v3.*;
 import org.cloudfoundry.client.v3.DockerData;
+import org.cloudfoundry.client.v3.Error;
 import org.cloudfoundry.client.v3.applications.*;
 import org.cloudfoundry.client.v3.droplets.Buildpack;
 import org.cloudfoundry.client.v3.droplets.DropletResource;
@@ -118,12 +119,7 @@ import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CreateTaskResponse;
 import org.cloudfoundry.client.v3.tasks.TaskResource;
-import org.cloudfoundry.doppler.DopplerClient;
-import org.cloudfoundry.doppler.Envelope;
-import org.cloudfoundry.doppler.EventType;
-import org.cloudfoundry.doppler.LogMessage;
-import org.cloudfoundry.doppler.RecentLogsRequest;
-import org.cloudfoundry.doppler.StreamRequest;
+import org.cloudfoundry.doppler.*;
 import org.cloudfoundry.operations.AbstractOperationsTest;
 import org.cloudfoundry.util.DateUtils;
 import org.cloudfoundry.util.FluentMap;
@@ -442,6 +438,36 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .stack("stack")
                 .urls("/url1", "/url2")
                 .sidecars("sidecar-name")
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    public void getProcessesStatsError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStatsError(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutes(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecars(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .urls("/url1", "/url2")
+                .sidecars("sidecar-name")
+                .runningInstances(0)
+                .diskQuota(0)
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -4500,6 +4526,18 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                             .build()
                     ).build()
                 ));
+    }
+
+    private static void requestGetProcessesStatsError(CloudFoundryClient cloudFoundryClient, String processId) {
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
     }
 
     private static void requestApplicationsSpecificStateV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId, ApplicationState stateReturned) {

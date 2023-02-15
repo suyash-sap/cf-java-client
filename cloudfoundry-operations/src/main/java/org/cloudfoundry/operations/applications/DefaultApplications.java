@@ -2039,6 +2039,8 @@ public final class DefaultApplications implements Applications {
                 .build()));
     }
 
+
+
     private static Mono<Tuple6<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource, List<SidecarResource>>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {
         return Mono.zip(requestGetApplicationProcesses(cloudFoundryClient, applicationResource.getId())
                 .singleOrEmpty(),
@@ -2048,6 +2050,37 @@ public final class DefaultApplications implements Applications {
             Mono.just(applicationResource),
             requestListProcessSidecars(cloudFoundryClient, applicationResource.getId()).collectList());
     }
+
+    private static Flux<ProcessResource> getApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationProcesses(cloudFoundryClient, applicationId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+                t -> Flux.just(ProcessResource.builder().build()));
+    }
+
+    private static Mono<GetProcessStatisticsResponse> getProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        return requestGetProcessesStats(cloudFoundryClient, processId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+                t -> Mono.just(GetProcessStatisticsResponse.builder().build()));
+    }
+
+    private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> getApplicationRoutesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationRoutes(cloudFoundryClient, applicationId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+                t -> Flux.just(org.cloudfoundry.client.v3.routes.RouteResource.builder().build()));
+    }
+
+    private static Mono<GetApplicationCurrentDropletResponse> getCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+                t -> Mono.just(GetApplicationCurrentDropletResponse.builder().build()));
+    }
+
+    private static Flux<SidecarResource> listProcessSidecars(CloudFoundryClient cloudFoundryClient, String processId) {
+        return requestListProcessSidecars(cloudFoundryClient, processId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+                t -> Flux.just(SidecarResource.builder().build()));
+    }
+
 
     private static ApplicationDetail toApplicationDetail(ProcessResource processResource,
                                                          GetProcessStatisticsResponse processStatistics,

@@ -2042,13 +2042,13 @@ public final class DefaultApplications implements Applications {
 
 
     private static Mono<Tuple6<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource, List<SidecarResource>>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {
-        return Mono.zip(requestGetApplicationProcesses(cloudFoundryClient, applicationResource.getId())
+        return Mono.zip(getApplicationProcesses(cloudFoundryClient, applicationResource.getId())
                 .singleOrEmpty(),
-            requestGetProcessesStats(cloudFoundryClient, applicationResource.getId()),
-            requestGetApplicationRoutes(cloudFoundryClient, applicationResource.getId()).collectList(),
-            requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationResource.getId()),
+            getProcessesStats(cloudFoundryClient, applicationResource.getId()),
+            getApplicationRoutesV3(cloudFoundryClient, applicationResource.getId()).collectList(),
+            getCurrentDroplet(cloudFoundryClient, applicationResource.getId()),
             Mono.just(applicationResource),
-            requestListProcessSidecars(cloudFoundryClient, applicationResource.getId()).collectList());
+            listProcessSidecars(cloudFoundryClient, applicationResource.getId()).collectList());
     }
 
     private static Flux<ProcessResource> getApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {

@@ -504,6 +504,39 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
             .verify(Duration.ofSeconds(5));
     }
 
+
+    @Test
+    public void getProcessSidecarsError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStats(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutes(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecarsError(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .instanceDetail(fill(InstanceDetail.builder())
+                    .index("123")
+                    .state("RUNNING")
+                    .build())
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .urls("/url1", "/url2")
+                //.sidecars("sidecar-name")
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
     @Test
     public void getApplicationManifest() {
         requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
@@ -659,38 +692,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .requestedState("test-application-summary-state")
                 .stack("test-stack-entity-name")
                 .url("test-route-host.test-domain-name/test-path")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
-    public void getDetectedBuildpack() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummaryDetectedBuildpack(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstances(this.cloudFoundryClient, "test-application-id");
-        requestGetApplicationV3Docker(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-application-summary-detectedBuildpack")
-                .id("test-application-summary-id")
-                .instanceDetail(fill(InstanceDetail.builder())
-                    .index("instance-0")
-                    .since(new Date(1000))
-                    .state("test-application-instance-info-state")
-                    .build())
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name:1")
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -917,33 +918,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
     }
 
     @Test
-    public void getInstancesError() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesError(this.cloudFoundryClient, "test-application-id", 220001);
-        requestGetApplicationV3Buildpack(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-buildpack")
-                .id("test-application-summary-id")
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name/test-path")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
     public void getNoBuildpack() {
         requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
         requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
@@ -970,33 +944,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .requestedState("test-application-summary-state")
                 .stack("test-stack-entity-name")
                 .url("test-route-host.test-domain-name:1")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
-    public void getStagingError() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesError(this.cloudFoundryClient, "test-application-id", 170002);
-        requestGetApplicationV3Buildpack(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-buildpack")
-                .id("test-application-summary-id")
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name/test-path")
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -4426,6 +4373,20 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                     .build()));
     }
 
+    private static void requestGetApplicationProcessesError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listProcesses(ListApplicationProcessesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .processId(applicationId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
     private static void requestTotalRunningProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
         final Queue<GetProcessStatisticsResponse> responses = new LinkedList<>(Arrays.asList(
             fill(GetProcessStatisticsResponse.builder())
@@ -4679,6 +4640,18 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                     .build()));
     }
 
+    private static void requestGetApplicationsCurrentDropletError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .getCurrentDroplet(GetApplicationCurrentDropletRequest.builder()
+                .applicationId(applicationId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
     private static void requestListProcessSidecars(CloudFoundryClient cloudFoundryClient, String applicationId) {
         when(cloudFoundryClient.processes()
             .listSidecars(ListProcessSidecarsRequest.builder()
@@ -4693,5 +4666,18 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                         .id("sidecar-id")
                         .build())
                     .build()));
+    }
+
+    private static void requestListProcessSidecarsError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.processes()
+            .listSidecars(ListProcessSidecarsRequest.builder()
+                .processId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
     }
 }

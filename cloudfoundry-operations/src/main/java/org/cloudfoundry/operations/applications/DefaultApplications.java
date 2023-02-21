@@ -109,6 +109,10 @@ public final class DefaultApplications implements Applications {
 
     private static final int CF_STAGING_TIME_EXPIRED = 170007;
 
+    private static final int CF_RESOURCE_NOT_FOUND = 10010;
+
+    private static final int UNKNOWN_ERROR = 10001;
+
     private static final String[] ENTRY_FIELDS_CRASH = {"index", "reason", "exit_description"};
 
     private static final String[] ENTRY_FIELDS_NORMAL = {"instances", "memory", "state", "environment_json"};
@@ -2052,35 +2056,30 @@ public final class DefaultApplications implements Applications {
     }
 
     private static Flux<ProcessResource> getApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestGetApplicationProcesses(cloudFoundryClient, applicationId)
-            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
-                t -> Flux.just(ProcessResource.builder().build()));
+        return requestGetApplicationProcesses(cloudFoundryClient, applicationId);
     }
 
     private static Mono<GetProcessStatisticsResponse> getProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
         return requestGetProcessesStats(cloudFoundryClient, processId)
-            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
                 t -> Mono.just(GetProcessStatisticsResponse.builder().build()));
     }
 
     private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> getApplicationRoutesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestGetApplicationRoutes(cloudFoundryClient, applicationId)
-            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
                 t -> Flux.empty());
     }
 
     private static Mono<GetApplicationCurrentDropletResponse> getCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationId)
-            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
-                t -> Mono.just(GetApplicationCurrentDropletResponse.builder().build()));
+        return requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationId);
     }
 
     private static Flux<SidecarResource> listProcessSidecars(CloudFoundryClient cloudFoundryClient, String processId) {
         return requestListProcessSidecars(cloudFoundryClient, processId)
-            .onErrorResume(ExceptionUtils.statusCodeV3(10010, 10001),
-                t -> Flux.just(SidecarResource.builder().build()));
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
+                t -> Flux.empty());
     }
-
 
     private static ApplicationDetail toApplicationDetail(ProcessResource processResource,
                                                          GetProcessStatisticsResponse processStatistics,

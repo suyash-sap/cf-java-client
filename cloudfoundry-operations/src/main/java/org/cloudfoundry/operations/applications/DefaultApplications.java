@@ -58,8 +58,6 @@ import org.cloudfoundry.client.v2.organizations.OrganizationResource;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainEntity;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainResource;
 import org.cloudfoundry.client.v2.routes.CreateRouteResponse;
-import org.cloudfoundry.client.v2.routes.DeleteRouteRequest;
-import org.cloudfoundry.client.v2.routes.DeleteRouteResponse;
 import org.cloudfoundry.client.v2.routes.ListRoutesRequest;
 import org.cloudfoundry.client.v2.routes.RouteResource;
 import org.cloudfoundry.client.v2.servicebindings.CreateServiceBindingRequest;
@@ -88,6 +86,7 @@ import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.ApplicationResource;
 import org.cloudfoundry.client.v3.applications.GetApplicationResponse;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
+import org.cloudfoundry.client.v3.routes.DeleteRouteRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
@@ -214,9 +213,8 @@ public final class DefaultApplications implements Applications {
             .flatMap(function((cloudFoundryClient, spaceId) -> getRoutesAndApplicationId(cloudFoundryClient, request, spaceId, Optional.ofNullable(request.getDeleteRoutes()).orElse(false))
                 .map(function((routes, applicationId) -> Tuples.of(cloudFoundryClient, routes, applicationId)))))
             .flatMap(function((cloudFoundryClient, routes, applicationId) -> deleteRoutes(cloudFoundryClient, request.getCompletionTimeout(), routes)
-                .thenReturn(Tuples.of(cloudFoundryClient, applicationId))))
-            .delayUntil(function(DefaultApplications::removeServiceBindings))
-            .flatMap(function(DefaultApplications::requestDeleteApplication))
+                .thenReturn(Tuples.of(cloudFoundryClient, applicationId, request.getCompletionTimeout()))))
+            .flatMap(function(DefaultApplications::deleteApplicationAndWait))
             .transform(OperationsLogging.log("Delete Application"))
             .checkpoint();
     }
@@ -697,14 +695,14 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<Void> deleteRoute(CloudFoundryClient cloudFoundryClient, String routeId, Duration completionTimeout) {
         return requestDeleteRoute(cloudFoundryClient, routeId)
-            .flatMap(job -> JobUtils.waitForCompletion(cloudFoundryClient, completionTimeout, job));
+            .map(DefaultApplications::extractJobId)
+            .flatMap(jobId -> JobUtils.waitForCompletion(cloudFoundryClient, completionTimeout, jobId));
     }
 
-    private static Mono<Void> deleteRoutes(CloudFoundryClient cloudFoundryClient, Duration completionTimeout, Optional<List<org.cloudfoundry.client.v2.routes.Route>> routes) {
-        return routes
+    private static Mono<Void> deleteRoutes(CloudFoundryClient cloudFoundryClient, Duration completionTimeout, Optional<List<org.cloudfoundry.client.v3.routes.RouteResource>> routes) {    return routes
             .map(Flux::fromIterable)
             .orElse(Flux.empty())
-            .map(org.cloudfoundry.client.v2.routes.Route::getId)
+            .map(org.cloudfoundry.client.v3.routes.RouteResource::getId)
             .flatMap(routeId -> deleteRoute(cloudFoundryClient, routeId, completionTimeout))
             .then();
     }
@@ -923,8 +921,7 @@ public final class DefaultApplications implements Applications {
         }
     }
 
-    private static Mono<Optional<List<org.cloudfoundry.client.v2.routes.Route>>> getOptionalRoutes(CloudFoundryClient cloudFoundryClient, boolean deleteRoutes, String applicationId) {
-        if (deleteRoutes) {
+    private static Mono<Optional<List<org.cloudfoundry.client.v3.routes.RouteResource>>> getOptionalRoutes(CloudFoundryClient cloudFoundryClient, boolean deleteRoutes, String applicationId) {    if (deleteRoutes) {
             return getRoutes(cloudFoundryClient, applicationId)
                 .map(Optional::of);
         } else {
@@ -1026,16 +1023,23 @@ public final class DefaultApplications implements Applications {
                 .map(ResourceUtils::getId));
     }
 
-    private static Mono<List<org.cloudfoundry.client.v2.routes.Route>> getRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestApplicationSummary(cloudFoundryClient, applicationId)
-            .map(SummaryApplicationResponse::getRoutes);
+    private static Mono<List<org.cloudfoundry.client.v3.routes.RouteResource>> getRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationRoutes(cloudFoundryClient, applicationId).collectList();
     }
 
-    private static Mono<Tuple2<Optional<List<org.cloudfoundry.client.v2.routes.Route>>, String>> getRoutesAndApplicationId(CloudFoundryClient cloudFoundryClient, DeleteApplicationRequest request,
-                                                                                                                           String spaceId, boolean deleteRoutes) {
-        return getApplicationId(cloudFoundryClient, request.getName(), spaceId)
-            .flatMap(applicationId -> getOptionalRoutes(cloudFoundryClient, deleteRoutes, applicationId)
-                .zipWith(Mono.just(applicationId)));
+    private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> requestGetApplicationRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.applicationsV3()
+          .listRoutes(org.cloudfoundry.client.v3.applications.ListApplicationRoutesRequest.builder()
+            .page(page)
+            .applicationId(applicationId)
+            .build()));
+    }
+
+    private static Mono<Tuple2<Optional<List<org.cloudfoundry.client.v3.routes.RouteResource>>, String>> getRoutesAndApplicationId(CloudFoundryClient cloudFoundryClient, DeleteApplicationRequest request,
+                                                                                                                                   String spaceId, boolean deleteRoutes) {
+        return getApplicationIdV3(cloudFoundryClient, request.getName(), spaceId)
+          .flatMap(applicationId -> getOptionalRoutes(cloudFoundryClient, deleteRoutes, applicationId)
+            .zipWith(Mono.just(applicationId)));
     }
 
     private static Mono<String> getServiceId(CloudFoundryClient cloudFoundryClient, String serviceInstanceName, String spaceId) {
@@ -1383,17 +1387,9 @@ public final class DefaultApplications implements Applications {
                 .build());
     }
 
-    private static Mono<Void> requestDeleteApplication(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV2()
-            .delete(org.cloudfoundry.client.v2.applications.DeleteApplicationRequest.builder()
-                .applicationId(applicationId)
-                .build());
-    }
-
-    private static Mono<DeleteRouteResponse> requestDeleteRoute(CloudFoundryClient cloudFoundryClient, String routeId) {
-        return cloudFoundryClient.routes()
+    private static Mono<String> requestDeleteRoute(CloudFoundryClient cloudFoundryClient, String routeId) {
+        return cloudFoundryClient.routesV3()
             .delete(DeleteRouteRequest.builder()
-                .async(true)
                 .routeId(routeId)
                 .build());
     }
@@ -1998,4 +1994,21 @@ public final class DefaultApplications implements Applications {
             .then();
     }
 
+    private static Mono<Void> deleteApplicationAndWait(CloudFoundryClient cloudFoundryClient, String applicationId, Duration completionTimeout) {
+        return requestDeleteApplicationV3(cloudFoundryClient, applicationId)
+          .map(DefaultApplications::extractJobId)
+          .flatMap(jobId -> JobUtils.waitForCompletion(cloudFoundryClient, completionTimeout, jobId));
+    }
+
+
+    private static Mono<String> requestDeleteApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+          .delete(org.cloudfoundry.client.v3.applications.DeleteApplicationRequest.builder()
+            .applicationId(applicationId)
+            .build());
+    }
+
+    private static String extractJobId(String locationUrl) {
+        return locationUrl.substring(locationUrl.lastIndexOf("/") + 1);
+    }
 }

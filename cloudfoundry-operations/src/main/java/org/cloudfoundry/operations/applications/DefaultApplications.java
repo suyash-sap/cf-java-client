@@ -88,6 +88,9 @@ import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.ApplicationResource;
 import org.cloudfoundry.client.v3.applications.GetApplicationResponse;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
+import org.cloudfoundry.client.v3.jobs.GetJobRequest;
+import org.cloudfoundry.client.v3.jobs.GetJobResponse;
+import org.cloudfoundry.client.v3.jobs.JobState;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
@@ -1033,7 +1036,7 @@ public final class DefaultApplications implements Applications {
 
     private static Mono<Tuple2<Optional<List<org.cloudfoundry.client.v2.routes.Route>>, String>> getRoutesAndApplicationId(CloudFoundryClient cloudFoundryClient, DeleteApplicationRequest request,
                                                                                                                            String spaceId, boolean deleteRoutes) {
-        return getApplicationId(cloudFoundryClient, request.getName(), spaceId)
+        return getApplicationIdV3(cloudFoundryClient, request.getName(), spaceId)
             .flatMap(applicationId -> getOptionalRoutes(cloudFoundryClient, deleteRoutes, applicationId)
                 .zipWith(Mono.just(applicationId)));
     }
@@ -1996,6 +1999,24 @@ public final class DefaultApplications implements Applications {
             .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
             .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during staging", application))
             .then();
+    }
+
+    private static Mono<Void> deleteApplicationAndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration completionTimeout) {
+        return requestDeleteApplicationV3(cloudFoundryClient, applicationId)
+            .map(DefaultApplications::extractJobId)
+            .flatMap(jobId -> JobUtils.waitForCompletion(cloudFoundryClient, completionTimeout, jobId));
+    }
+
+
+    private static Mono<String> requestDeleteApplicationV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+            .delete(org.cloudfoundry.client.v3.applications.DeleteApplicationRequest.builder()
+                .applicationId(applicationId)
+                .build());
+    }
+
+    private static String extractJobId(String locationUrl) {
+        return locationUrl.substring(locationUrl.lastIndexOf("/") + 1);
     }
 
 }

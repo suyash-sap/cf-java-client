@@ -2855,7 +2855,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void stopInvalidApplication() {
-        requestApplicationsEmptyV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID);
+        requestApplicationsEmpty(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID);
 
         this.applications
             .stop(StopApplicationRequest.builder()
@@ -2868,8 +2868,8 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void stopStartedApplication() {
-        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
-        requestApplicationStop(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STARTED");
+        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STOPPED");
 
         this.applications
             .stop(StopApplicationRequest.builder()
@@ -2882,7 +2882,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void stopStoppedApplication() {
-        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
 
         this.applications
             .stop(StopApplicationRequest.builder()
@@ -4550,24 +4550,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .build()))
             .thenReturn(Mono
                 .just(fill(ListApplicationsResponse.builder())
-                    .build()));
-    }
-
-    private static void requestApplicationStop(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        when(cloudFoundryClient.applicationsV3()
-            .stop(org.cloudfoundry.client.v3.applications.StopApplicationRequest.builder()
-                .applicationId(applicationId)
-                .build()))
-            .thenReturn(Mono
-                .just(StopApplicationResponse.builder()
-                    .state(ApplicationState.STOPPED)
-                    .createdAt(new Date().toString())
-                    .id("test-application-id")
-                    .name("test-application-name")
-                    .lifecycle(Lifecycle.builder()
-                        .data(new LifecycleData() {})
-                        .type(BUILDPACK)
-                        .build())
                     .build()));
     }
 }

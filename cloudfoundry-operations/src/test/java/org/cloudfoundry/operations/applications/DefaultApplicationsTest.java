@@ -103,23 +103,23 @@ import org.cloudfoundry.client.v2.stacks.GetStackResponse;
 import org.cloudfoundry.client.v2.stacks.ListStacksRequest;
 import org.cloudfoundry.client.v2.stacks.ListStacksResponse;
 import org.cloudfoundry.client.v2.stacks.StackEntity;
-import org.cloudfoundry.client.v3.BuildpackData;
+import org.cloudfoundry.client.v3.*;
 import org.cloudfoundry.client.v3.DockerData;
-import org.cloudfoundry.client.v3.Lifecycle;
-import org.cloudfoundry.client.v3.applications.ApplicationState;
-import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
-import org.cloudfoundry.client.v3.applications.ListApplicationsResponse;
+import org.cloudfoundry.client.v3.Error;
+import org.cloudfoundry.client.v3.applications.*;
+import org.cloudfoundry.client.v3.droplets.Buildpack;
+import org.cloudfoundry.client.v3.droplets.DropletResource;
+import org.cloudfoundry.client.v3.droplets.DropletState;
+import org.cloudfoundry.client.v3.packages.*;
+import org.cloudfoundry.client.v3.processes.*;
+import org.cloudfoundry.client.v3.routes.RouteRelationships;
+import org.cloudfoundry.client.v3.sidecars.SidecarResource;
 import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
 import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
 import org.cloudfoundry.client.v3.tasks.CreateTaskResponse;
 import org.cloudfoundry.client.v3.tasks.TaskResource;
-import org.cloudfoundry.doppler.DopplerClient;
-import org.cloudfoundry.doppler.Envelope;
-import org.cloudfoundry.doppler.EventType;
-import org.cloudfoundry.doppler.LogMessage;
-import org.cloudfoundry.doppler.RecentLogsRequest;
-import org.cloudfoundry.doppler.StreamRequest;
+import org.cloudfoundry.doppler.*;
 import org.cloudfoundry.operations.AbstractOperationsTest;
 import org.cloudfoundry.util.DateUtils;
 import org.cloudfoundry.util.FluentMap;
@@ -413,31 +413,125 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void get() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstances(this.cloudFoundryClient, "test-application-id");
-        requestGetApplicationV3Buildpack(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStats(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutes(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecars(this.cloudFoundryClient, "test-application-id");
+
 
         this.applications
             .get(GetApplicationRequest.builder()
-                .name("test-app")
+                .name("test-application-name")
                 .build())
             .as(StepVerifier::create)
             .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-buildpack")
-                .id("test-application-summary-id")
+                .buildpack("buildpack-name")
+                .id("test-application-id")
                 .instanceDetail(fill(InstanceDetail.builder())
-                    .index("instance-0")
-                    .since(new Date(1000))
-                    .state("test-application-instance-info-state")
+                    .index("123")
+                    .state("RUNNING")
                     .build())
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name/test-path")
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .urls("/url1", "/url2")
+                .sidecars("sidecar-name")
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    public void getProcessesStatsError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStatsError(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutes(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecars(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .urls("/url1", "/url2")
+                .sidecars("sidecar-name")
+                .runningInstances(0)
+                .diskQuota(0)
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+    @Test
+    public void getApplicationRoutesError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStats(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutesError(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecars(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .instanceDetail(fill(InstanceDetail.builder())
+                    .index("123")
+                    .state("RUNNING")
+                    .build())
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .sidecars("sidecar-name")
+                .build())
+            .expectComplete()
+            .verify(Duration.ofSeconds(5));
+    }
+
+
+    @Test
+    public void getProcessSidecarsError() {
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
+        requestGetProcessesStats(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationRoutes(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationsCurrentDroplet(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestListProcessSidecarsError(this.cloudFoundryClient, "test-application-id");
+
+
+        this.applications
+            .get(GetApplicationRequest.builder()
+                .name("test-application-name")
+                .build())
+            .as(StepVerifier::create)
+            .expectNext(fill(ApplicationDetail.builder())
+                .buildpack("buildpack-name")
+                .id("test-application-id")
+                .instanceDetail(fill(InstanceDetail.builder())
+                    .index("123")
+                    .state("RUNNING")
+                    .build())
+                .name("test-application-name")
+                .requestedState("STARTED")
+                .stack("stack")
+                .urls("/url1", "/url2")
+                //.sidecars("sidecar-name")
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -598,38 +692,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .requestedState("test-application-summary-state")
                 .stack("test-stack-entity-name")
                 .url("test-route-host.test-domain-name/test-path")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
-    public void getDetectedBuildpack() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummaryDetectedBuildpack(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstances(this.cloudFoundryClient, "test-application-id");
-        requestGetApplicationV3Docker(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-application-summary-detectedBuildpack")
-                .id("test-application-summary-id")
-                .instanceDetail(fill(InstanceDetail.builder())
-                    .index("instance-0")
-                    .since(new Date(1000))
-                    .state("test-application-instance-info-state")
-                    .build())
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name:1")
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -856,33 +918,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
     }
 
     @Test
-    public void getInstancesError() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesError(this.cloudFoundryClient, "test-application-id", 220001);
-        requestGetApplicationV3Buildpack(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-buildpack")
-                .id("test-application-summary-id")
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name/test-path")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
     public void getNoBuildpack() {
         requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
         requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
@@ -909,33 +944,6 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                 .requestedState("test-application-summary-state")
                 .stack("test-stack-entity-name")
                 .url("test-route-host.test-domain-name:1")
-                .build())
-            .expectComplete()
-            .verify(Duration.ofSeconds(5));
-    }
-
-    @Test
-    public void getStagingError() {
-        requestApplications(this.cloudFoundryClient, "test-app", TEST_SPACE_ID, "test-application-id");
-        requestApplicationStatistics(this.cloudFoundryClient, "test-application-id");
-        requestStack(this.cloudFoundryClient, "test-application-stackId");
-        requestApplicationSummary(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesError(this.cloudFoundryClient, "test-application-id", 170002);
-        requestGetApplicationV3Buildpack(this.cloudFoundryClient, "test-application-id");
-
-        this.applications
-            .get(GetApplicationRequest.builder()
-                .name("test-app")
-                .build())
-            .as(StepVerifier::create)
-            .expectNext(fill(ApplicationDetail.builder())
-                .buildpack("test-buildpack")
-                .id("test-application-summary-id")
-                .lastUploaded(new Date(0))
-                .name("test-application-summary-name")
-                .requestedState("test-application-summary-state")
-                .stack("test-stack-entity-name")
-                .url("test-route-host.test-domain-name/test-path")
                 .build())
             .expectComplete()
             .verify(Duration.ofSeconds(5));
@@ -2735,10 +2743,12 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startApplicationFailurePartial() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesFailingPartial(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestFailedPartiallyProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .start(StartApplicationRequest.builder()
@@ -2751,10 +2761,12 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startApplicationFailureTotal() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesFailingTotal(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestFailedTotallyProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .start(StartApplicationRequest.builder()
@@ -2767,10 +2779,12 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startApplicationTimeout() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesTimeout(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestTimedOutProcessesStats(this.cloudFoundryClient, "process-id");
 
         this.applications
             .start(StartApplicationRequest.builder()
@@ -2784,7 +2798,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startInvalidApplication() {
-        requestApplicationsEmpty(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID);
+        requestApplicationsEmptyV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID);
 
         this.applications
             .start(StartApplicationRequest.builder()
@@ -2797,7 +2811,7 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startStartedApplication() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STARTED");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STARTED);
 
         this.applications
             .start(StartApplicationRequest.builder()
@@ -2810,10 +2824,12 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
 
     @Test
     public void startStoppedApplication() {
-        requestApplicationsSpecificState(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, "STOPPED");
-        requestUpdateApplicationState(this.cloudFoundryClient, "test-application-id", "STARTED");
-        requestGetApplication(this.cloudFoundryClient, "test-application-id");
-        requestApplicationInstancesRunning(this.cloudFoundryClient, "test-application-id");
+        requestApplicationsSpecificStateV3(this.cloudFoundryClient, "test-application-name", TEST_SPACE_ID, ApplicationState.STOPPED);
+        requestListPackages(this.cloudFoundryClient, "test-application-id");
+        requestListPackageDroplets(this.cloudFoundryClient, "package-resource-id");
+        requestApplicationStart(this.cloudFoundryClient, "test-application-id");
+        requestGetApplicationProcesses(this.cloudFoundryClient, "test-application-id");
+        requestTotalRunningProcessesStats(this.cloudFoundryClient, "process-id");
 
         StepVerifier.withVirtualTime(() -> this.applications
             .start(StartApplicationRequest.builder()
@@ -4279,4 +4295,389 @@ public final class DefaultApplicationsTest extends AbstractOperationsTest {
                     .build()));
     }
 
+    private static void requestListPackages(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.packages()
+            .list(ListPackagesRequest.builder()
+                .applicationId(applicationId)
+                .state(PackageState.READY)
+                .orderBy("-created_at")
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListPackagesResponse.builder())
+                    .resources(PackageResource.builder()
+                        .id("package-resource-id")
+                        .state(PackageState.READY)
+                        .createdAt(new Date().toString())
+                        .data(new PackageData() {})
+                        .type(PackageType.DOCKER)
+                        .build())
+                    .build()));
+    }
+
+    private static void requestListPackageDroplets(CloudFoundryClient cloudFoundryClient, String packageResourceId) {
+        when(cloudFoundryClient.packages()
+            .listDroplets(ListPackageDropletsRequest.builder()
+                .packageId(packageResourceId)
+                .state(DropletState.STAGED)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListPackageDropletsResponse.builder())
+                    .resource(DropletResource.builder()
+                        .state(DropletState.STAGED)
+                        .id("droplet-id")
+                        .createdAt(new Date().toString())
+                        .executionMetadata("metadata")
+                        .lifecycle(Lifecycle.builder()
+                            .data(new LifecycleData() {})
+                            .type(BUILDPACK)
+                            .build())
+                        .build())
+                    .build()));
+    }
+
+    private static void requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                .applicationId(applicationId)
+                .build()))
+            .thenReturn(Mono
+                .just(StartApplicationResponse.builder()
+                    .id(applicationId)
+                    .lifecycle(Lifecycle.builder()
+                        .data(new LifecycleData() {})
+                        .type(BUILDPACK)
+                        .build())
+                    .createdAt(new Date().toString())
+                    .name("test-application-name")
+                    .state(ApplicationState.STARTED)
+                    .build()));
+    }
+
+    private static void requestGetApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listProcesses(ListApplicationProcessesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .processId(applicationId)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListApplicationProcessesResponse.builder())
+                    .resource(fill(ProcessResource.builder())
+                        .type("web")
+                        .id("process-id")
+                        .instances(1)
+                        .memoryInMb(1)
+                        .build())
+                    .build()));
+    }
+
+    private static void requestGetApplicationProcessesError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listProcesses(ListApplicationProcessesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .processId(applicationId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
+    private static void requestTotalRunningProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        final Queue<GetProcessStatisticsResponse> responses = new LinkedList<>(Arrays.asList(
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build()
+                ).build(),
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.RUNNING)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.RUNNING)
+                        .build()
+                ).build()
+        ));
+
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono
+                .defer(() -> Mono.just(responses.poll())));
+    }
+
+    private static void requestFailedPartiallyProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        final Queue<GetProcessStatisticsResponse> responses = new LinkedList<>(Arrays.asList(
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build()
+                ).build(),
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.RUNNING)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.CRASHED)
+                        .build()
+                ).build()
+        ));
+
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono
+                .defer(() -> Mono.just(responses.poll())));
+    }
+
+    private static void requestFailedTotallyProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        final Queue<GetProcessStatisticsResponse> responses = new LinkedList<>(Arrays.asList(
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.STARTING)
+                        .build()
+                ).build(),
+            fill(GetProcessStatisticsResponse.builder())
+                .resources(
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.CRASHED)
+                        .build(),
+                    fill(ProcessStatisticsResource.builder())
+                        .state(ProcessState.CRASHED)
+                        .build()
+                ).build()
+        ));
+
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono
+                .defer(() -> Mono.just(responses.poll())));
+    }
+
+    private static void requestTimedOutProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(GetProcessStatisticsResponse.builder())
+                    .resources(
+                        fill(ProcessStatisticsResource.builder())
+                            .state(ProcessState.STARTING)
+                            .build(),
+                        fill(ProcessStatisticsResource.builder())
+                            .state(ProcessState.STARTING)
+                            .build()
+                    ).build()
+            ));
+    }
+
+    private static void requestGetProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(GetProcessStatisticsResponse.builder())
+                    .resources(
+                        fill(ProcessStatisticsResource.builder())
+                            .state(ProcessState.RUNNING)
+                            .diskQuota(1L)
+                            .memoryQuota(1L)
+                            .index(123)
+                            .uptime(0L)
+                            .usage(ProcessUsage.builder()
+                                .memory(1L)
+                                .cpu(1.0)
+                                .disk(1L)
+                                .time("1970-01-01T00:00:00Z")
+                                .build())
+                            .build()
+                    ).build()
+                ));
+    }
+
+    private static void requestGetProcessesStatsError(CloudFoundryClient cloudFoundryClient, String processId) {
+        when(cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
+    private static void requestApplicationsSpecificStateV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId, ApplicationState stateReturned) {
+        when(cloudFoundryClient.applicationsV3()
+            .list(ListApplicationsRequest.builder()
+                .name(application)
+                .spaceId(spaceId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListApplicationsResponse.builder())
+                    .resource(org.cloudfoundry.client.v3.applications.ApplicationResource.builder()
+                        .state(stateReturned)
+                        .createdAt(new Date().toString())
+                        .id("test-application-id")
+                        .name("test-application-name")
+                        .lifecycle(Lifecycle.builder()
+                            .data(new LifecycleData() {})
+                            .type(BUILDPACK)
+                            .build())
+                        .build())
+                    .build()));
+    }
+
+    private static void requestApplicationsEmptyV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId) {
+        when(cloudFoundryClient.applicationsV3()
+            .list(ListApplicationsRequest.builder()
+                .name(application)
+                .spaceId(spaceId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListApplicationsResponse.builder())
+                    .build()));
+    }
+
+    private static void requestGetApplicationRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listRoutes(org.cloudfoundry.client.v3.applications.ListApplicationRoutesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(org.cloudfoundry.client.v3.applications.ListApplicationRoutesResponse.builder())
+                    .resources(
+                        org.cloudfoundry.client.v3.routes.RouteResource.builder()
+                            .url("/url1")
+                            .createdAt("createdAt")
+                            .id("route-id-1")
+                            .host("host1")
+                            .path("path1")
+                            .relationships(RouteRelationships.builder()
+                                .domain(ToOneRelationship.builder()
+                                    .build())
+                                .space(ToOneRelationship.builder()
+                                    .build())
+                                .build())
+                            .build(),
+                        org.cloudfoundry.client.v3.routes.RouteResource.builder()
+                            .url("/url2")
+                            .createdAt("createdAt")
+                            .id("route-id-2")
+                            .host("host2")
+                            .path("path2")
+                            .relationships(RouteRelationships.builder()
+                                .domain(ToOneRelationship.builder()
+                                    .build())
+                                .space(ToOneRelationship.builder()
+                                    .build())
+                                .build())
+                            .build())
+                    .build()));
+    }
+
+    private static void requestGetApplicationRoutesError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .listRoutes(org.cloudfoundry.client.v3.applications.ListApplicationRoutesRequest.builder()
+                .applicationId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
+    private static void requestGetApplicationsCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .getCurrentDroplet(GetApplicationCurrentDropletRequest.builder()
+                .applicationId(applicationId)
+                .build()))
+            .thenReturn(Mono
+                .just(GetApplicationCurrentDropletResponse.builder()
+                    .buildpack(Buildpack.builder()
+                        .name("buildpack-name")
+                        .build())
+                    .stack("stack")
+                    .updatedAt("1970-01-01T00:00:00Z")
+                    .lifecycle(Lifecycle.builder()
+                        .data(new LifecycleData() {})
+                        .type(BUILDPACK)
+                        .build())
+                    .createdAt(new Date().toString())
+                    .id("droplet-d")
+                    .executionMetadata("metadata")
+                    .state(DropletState.STAGED)
+                    .build()));
+    }
+
+    private static void requestGetApplicationsCurrentDropletError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.applicationsV3()
+            .getCurrentDroplet(GetApplicationCurrentDropletRequest.builder()
+                .applicationId(applicationId)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
+
+    private static void requestListProcessSidecars(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.processes()
+            .listSidecars(ListProcessSidecarsRequest.builder()
+                .processId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono
+                .just(fill(ListProcessSidecarsResponse.builder())
+                    .resources(SidecarResource.builder()
+                        .name("sidecar-name")
+                        .createdAt("created-at")
+                        .id("sidecar-id")
+                        .build())
+                    .build()));
+    }
+
+    private static void requestListProcessSidecarsError(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        when(cloudFoundryClient.processes()
+            .listSidecars(ListProcessSidecarsRequest.builder()
+                .processId(applicationId)
+                .page(1)
+                .build()))
+            .thenReturn(Mono.error(new ClientV3Exception(404, Collections.singletonList(Error.builder()
+                .code(10010)
+                .title("title")
+                .detail("detail")
+                .build()))));
+    }
 }

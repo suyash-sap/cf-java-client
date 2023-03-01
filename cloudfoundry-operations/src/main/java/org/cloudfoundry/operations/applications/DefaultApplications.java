@@ -18,36 +18,12 @@ package org.cloudfoundry.operations.applications;
 
 import org.cloudfoundry.client.CloudFoundryClient;
 import org.cloudfoundry.client.v2.OrderDirection;
-import org.cloudfoundry.client.v2.applications.AbstractApplicationResource;
-import org.cloudfoundry.client.v2.applications.ApplicationEntity;
-import org.cloudfoundry.client.v2.applications.ApplicationEnvironmentRequest;
-import org.cloudfoundry.client.v2.applications.ApplicationEnvironmentResponse;
-import org.cloudfoundry.client.v2.applications.ApplicationInstanceInfo;
-import org.cloudfoundry.client.v2.applications.ApplicationInstancesRequest;
-import org.cloudfoundry.client.v2.applications.ApplicationInstancesResponse;
-import org.cloudfoundry.client.v2.applications.ApplicationStatisticsRequest;
-import org.cloudfoundry.client.v2.applications.ApplicationStatisticsResponse;
-import org.cloudfoundry.client.v2.applications.AssociateApplicationRouteRequest;
-import org.cloudfoundry.client.v2.applications.AssociateApplicationRouteResponse;
-import org.cloudfoundry.client.v2.applications.CopyApplicationRequest;
-import org.cloudfoundry.client.v2.applications.CopyApplicationResponse;
 import org.cloudfoundry.client.v2.applications.CreateApplicationRequest;
 import org.cloudfoundry.client.v2.applications.CreateApplicationResponse;
-import org.cloudfoundry.client.v2.applications.DockerCredentials;
-import org.cloudfoundry.client.v2.applications.InstanceStatistics;
 import org.cloudfoundry.client.v2.applications.ListApplicationRoutesRequest;
-import org.cloudfoundry.client.v2.applications.ListApplicationServiceBindingsRequest;
-import org.cloudfoundry.client.v2.applications.RemoveApplicationRouteRequest;
-import org.cloudfoundry.client.v2.applications.RemoveApplicationServiceBindingRequest;
-import org.cloudfoundry.client.v2.applications.RestageApplicationResponse;
-import org.cloudfoundry.client.v2.applications.Statistics;
-import org.cloudfoundry.client.v2.applications.SummaryApplicationRequest;
-import org.cloudfoundry.client.v2.applications.SummaryApplicationResponse;
 import org.cloudfoundry.client.v2.applications.TerminateApplicationInstanceRequest;
 import org.cloudfoundry.client.v2.applications.UpdateApplicationRequest;
-import org.cloudfoundry.client.v2.applications.UploadApplicationRequest;
-import org.cloudfoundry.client.v2.applications.UploadApplicationResponse;
-import org.cloudfoundry.client.v2.applications.Usage;
+import org.cloudfoundry.client.v2.applications.*;
 import org.cloudfoundry.client.v2.events.EventEntity;
 import org.cloudfoundry.client.v2.events.EventResource;
 import org.cloudfoundry.client.v2.events.ListEventsRequest;
@@ -57,11 +33,7 @@ import org.cloudfoundry.client.v2.organizations.ListOrganizationsRequest;
 import org.cloudfoundry.client.v2.organizations.OrganizationResource;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainEntity;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainResource;
-import org.cloudfoundry.client.v2.routes.CreateRouteResponse;
-import org.cloudfoundry.client.v2.routes.DeleteRouteRequest;
-import org.cloudfoundry.client.v2.routes.DeleteRouteResponse;
-import org.cloudfoundry.client.v2.routes.ListRoutesRequest;
-import org.cloudfoundry.client.v2.routes.RouteResource;
+import org.cloudfoundry.client.v2.routes.*;
 import org.cloudfoundry.client.v2.servicebindings.CreateServiceBindingRequest;
 import org.cloudfoundry.client.v2.servicebindings.CreateServiceBindingResponse;
 import org.cloudfoundry.client.v2.servicebindings.ServiceBindingResource;
@@ -70,66 +42,47 @@ import org.cloudfoundry.client.v2.serviceinstances.UnionServiceInstanceResource;
 import org.cloudfoundry.client.v2.shareddomains.ListSharedDomainsRequest;
 import org.cloudfoundry.client.v2.shareddomains.SharedDomainEntity;
 import org.cloudfoundry.client.v2.shareddomains.SharedDomainResource;
-import org.cloudfoundry.client.v2.spaces.GetSpaceRequest;
-import org.cloudfoundry.client.v2.spaces.GetSpaceResponse;
-import org.cloudfoundry.client.v2.spaces.GetSpaceSummaryRequest;
-import org.cloudfoundry.client.v2.spaces.GetSpaceSummaryResponse;
-import org.cloudfoundry.client.v2.spaces.ListSpaceApplicationsRequest;
-import org.cloudfoundry.client.v2.spaces.ListSpaceServiceInstancesRequest;
-import org.cloudfoundry.client.v2.spaces.SpaceApplicationSummary;
-import org.cloudfoundry.client.v2.spaces.SpaceResource;
+import org.cloudfoundry.client.v2.spaces.*;
 import org.cloudfoundry.client.v2.stacks.GetStackRequest;
 import org.cloudfoundry.client.v2.stacks.GetStackResponse;
 import org.cloudfoundry.client.v2.stacks.ListStacksRequest;
 import org.cloudfoundry.client.v2.stacks.StackResource;
 import org.cloudfoundry.client.v3.BuildpackData;
 import org.cloudfoundry.client.v3.Lifecycle;
+import org.cloudfoundry.client.v3.Relationship;
 import org.cloudfoundry.client.v3.Resource;
 import org.cloudfoundry.client.v3.applications.ApplicationResource;
 import org.cloudfoundry.client.v3.applications.GetApplicationResponse;
 import org.cloudfoundry.client.v3.applications.ListApplicationsRequest;
-import org.cloudfoundry.client.v3.tasks.CancelTaskRequest;
-import org.cloudfoundry.client.v3.tasks.CancelTaskResponse;
-import org.cloudfoundry.client.v3.tasks.CreateTaskRequest;
-import org.cloudfoundry.client.v3.tasks.CreateTaskResponse;
-import org.cloudfoundry.client.v3.tasks.TaskResource;
-import org.cloudfoundry.doppler.DopplerClient;
-import org.cloudfoundry.doppler.Envelope;
-import org.cloudfoundry.doppler.EventType;
-import org.cloudfoundry.doppler.LogMessage;
-import org.cloudfoundry.doppler.RecentLogsRequest;
-import org.cloudfoundry.doppler.StreamRequest;
+import org.cloudfoundry.client.v3.applications.*;
+import org.cloudfoundry.client.v3.builds.*;
+import org.cloudfoundry.client.v3.droplets.Buildpack;
+import org.cloudfoundry.client.v3.droplets.DropletResource;
+import org.cloudfoundry.client.v3.droplets.DropletState;
+import org.cloudfoundry.client.v3.packages.ListPackageDropletsRequest;
+import org.cloudfoundry.client.v3.packages.ListPackagesRequest;
+import org.cloudfoundry.client.v3.packages.PackageResource;
+import org.cloudfoundry.client.v3.packages.PackageState;
+import org.cloudfoundry.client.v3.processes.*;
+import org.cloudfoundry.client.v3.sidecars.SidecarResource;
+import org.cloudfoundry.client.v3.tasks.*;
+import org.cloudfoundry.doppler.*;
 import org.cloudfoundry.operations.util.OperationsLogging;
-import org.cloudfoundry.util.DateUtils;
-import org.cloudfoundry.util.DelayTimeoutException;
-import org.cloudfoundry.util.ExceptionUtils;
-import org.cloudfoundry.util.FileUtils;
-import org.cloudfoundry.util.FluentMap;
-import org.cloudfoundry.util.JobUtils;
-import org.cloudfoundry.util.PaginationUtils;
-import org.cloudfoundry.util.ResourceMatchingUtils;
-import org.cloudfoundry.util.ResourceUtils;
-import org.cloudfoundry.util.SortingUtils;
+import org.cloudfoundry.util.*;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuple5;
+import reactor.util.function.Tuple6;
 import reactor.util.function.Tuples;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.Optional;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -155,6 +108,10 @@ public final class DefaultApplications implements Applications {
     private static final int CF_STAGING_NOT_FINISHED = 170002;
 
     private static final int CF_STAGING_TIME_EXPIRED = 170007;
+
+    private static final int CF_RESOURCE_NOT_FOUND = 10010;
+
+    private static final int UNKNOWN_ERROR = 10001;
 
     private static final String[] ENTRY_FIELDS_CRASH = {"index", "reason", "exit_description"};
 
@@ -255,9 +212,9 @@ public final class DefaultApplications implements Applications {
             .zip(this.cloudFoundryClient, this.spaceId)
             .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getApplication(cloudFoundryClient, request.getName(), spaceId)
+                getApplicationV3(cloudFoundryClient, request.getName(), spaceId)
             )))
-            .flatMap(function(DefaultApplications::getAuxiliaryContent))
+            .flatMap(function(DefaultApplications::getApplicationSummary))
             .map(function(DefaultApplications::toApplicationDetail))
             .transform(OperationsLogging.log("Get Application"))
             .checkpoint();
@@ -569,10 +526,9 @@ public final class DefaultApplications implements Applications {
             .zip(this.cloudFoundryClient, this.spaceId)
             .flatMap(function((cloudFoundryClient, spaceId) -> Mono.zip(
                 Mono.just(cloudFoundryClient),
-                getApplicationIdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(STARTED_STATE))
+                getApplicationV3IdWhere(cloudFoundryClient, request.getName(), spaceId, isNotIn(ApplicationState.STARTED))
             )))
-            .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationAndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(),
-                request.getStartupTimeout())))
+            .flatMap(function((cloudFoundryClient, applicationId) -> startApplicationV3AndWait(cloudFoundryClient, request.getName(), applicationId, request.getStagingTimeout(), request.getStartupTimeout())))
             .transform(OperationsLogging.log("Start Application"))
             .checkpoint();
     }
@@ -721,20 +677,8 @@ public final class DefaultApplications implements Applications {
         }
     }
 
-    private static Statistics emptyApplicationStatistics() {
-        return Statistics.builder()
-            .usage(emptyApplicationUsage())
-            .build();
-    }
-
     private static Usage emptyApplicationUsage() {
         return Usage.builder()
-            .build();
-    }
-
-    private static InstanceStatistics emptyInstanceStats() {
-        return InstanceStatistics.builder()
-            .statistics(emptyApplicationStatistics())
             .build();
     }
 
@@ -820,46 +764,15 @@ public final class DefaultApplications implements Applications {
             .map(ResourceUtils::getId);
     }
 
-    private static Mono<ApplicationInstancesResponse> getApplicationInstances(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestApplicationInstances(cloudFoundryClient, applicationId)
-            .onErrorResume(ExceptionUtils.statusCode(CF_BUILDPACK_COMPILED_FAILED, CF_INSTANCES_ERROR, CF_STAGING_NOT_FINISHED, CF_STAGING_TIME_EXPIRED, CF_STAGING_ERROR),
-                t -> Mono.just(ApplicationInstancesResponse.builder().build()));
-    }
-
     private static Mono<List<RouteResource>> getApplicationRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
         return requestApplicationRoutes(cloudFoundryClient, applicationId)
             .collectList();
-    }
-
-    private static Mono<ApplicationStatisticsResponse> getApplicationStatistics(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return requestApplicationStatistics(cloudFoundryClient, applicationId)
-            .onErrorResume(ExceptionUtils.statusCode(CF_APP_STOPPED_STATS_ERROR), t -> Mono.just(ApplicationStatisticsResponse.builder().build()));
     }
 
     private static Mono<ApplicationResource> getApplicationV3(CloudFoundryClient cloudFoundryClient, String application, String spaceId) {
         return requestApplicationsV3(cloudFoundryClient, application, spaceId)
             .single()
             .onErrorResume(NoSuchElementException.class, t -> ExceptionUtils.illegalArgument("Application %s does not exist", application));
-    }
-
-    private static Mono<Tuple5<List<String>, SummaryApplicationResponse, GetStackResponse, List<InstanceDetail>, List<String>>> getAuxiliaryContent(CloudFoundryClient cloudFoundryClient,
-                                                                                                                                                    AbstractApplicationResource applicationResource) {
-        String applicationId = ResourceUtils.getId(applicationResource);
-        String stackId = ResourceUtils.getEntity(applicationResource).getStackId();
-
-        return Mono
-            .zip(
-                getApplicationStatistics(cloudFoundryClient, applicationId),
-                requestApplicationSummary(cloudFoundryClient, applicationId),
-                getApplicationInstances(cloudFoundryClient, applicationId)
-            )
-            .flatMap(function((applicationStatisticsResponse, summaryApplicationResponse, applicationInstancesResponse) -> Mono.zip(
-                getApplicationBuildpacks(cloudFoundryClient, applicationId),
-                Mono.just(summaryApplicationResponse),
-                requestStack(cloudFoundryClient, stackId),
-                toInstanceDetailList(applicationInstancesResponse, applicationStatisticsResponse),
-                toUrls(summaryApplicationResponse.getRoutes())
-            )));
     }
 
     private static Mono<String> getDefaultDomainId(CloudFoundryClient cloudFoundryClient) {
@@ -1243,13 +1156,6 @@ public final class DefaultApplications implements Applications {
                     .applicationId(applicationId)
                     .page(page)
                     .build()));
-    }
-
-    private static Mono<ApplicationStatisticsResponse> requestApplicationStatistics(CloudFoundryClient cloudFoundryClient, String applicationId) {
-        return cloudFoundryClient.applicationsV2()
-            .statistics(ApplicationStatisticsRequest.builder()
-                .applicationId(applicationId)
-                .build());
     }
 
     private static Mono<SummaryApplicationResponse> requestApplicationSummary(CloudFoundryClient cloudFoundryClient, String applicationId) {
@@ -1733,28 +1639,6 @@ public final class DefaultApplications implements Applications {
         return isNotIn(resource, STOPPED_STATE) ? stopApplication(cloudFoundryClient, ResourceUtils.getId(resource)) : Mono.just(resource);
     }
 
-    private static ApplicationDetail toApplicationDetail(List<String> buildpacks, SummaryApplicationResponse summaryApplicationResponse, GetStackResponse getStackResponse,
-                                                         List<InstanceDetail> instanceDetails, List<String> urls) {
-        if (buildpacks.size() == 0) {
-            buildpacks = Collections.singletonList(summaryApplicationResponse.getDetectedBuildpack());
-        }
-
-        return ApplicationDetail.builder()
-            .buildpacks(buildpacks)
-            .diskQuota(summaryApplicationResponse.getDiskQuota())
-            .id(summaryApplicationResponse.getId())
-            .instanceDetails(instanceDetails)
-            .instances(summaryApplicationResponse.getInstances())
-            .lastUploaded(toDate(summaryApplicationResponse.getPackageUpdatedAt()))
-            .memoryLimit(summaryApplicationResponse.getMemory())
-            .name(summaryApplicationResponse.getName())
-            .requestedState(summaryApplicationResponse.getState())
-            .runningInstances(summaryApplicationResponse.getRunningInstances())
-            .stack(getStackResponse.getEntity().getName())
-            .urls(urls)
-            .build();
-    }
-
     private static ApplicationEnvironments toApplicationEnvironments(ApplicationEnvironmentResponse response) {
         return ApplicationEnvironments.builder()
             .running(response.getRunningEnvironmentJsons())
@@ -1868,30 +1752,6 @@ public final class DefaultApplications implements Applications {
         }
     }
 
-    private static InstanceDetail toInstanceDetail(Map.Entry<String, ApplicationInstanceInfo> entry, ApplicationStatisticsResponse statisticsResponse) {
-        InstanceStatistics instanceStatistics = Optional.ofNullable(statisticsResponse.getInstances().get(entry.getKey())).orElse(emptyInstanceStats());
-        Statistics stats = Optional.ofNullable(instanceStatistics.getStatistics()).orElse(emptyApplicationStatistics());
-        Usage usage = Optional.ofNullable(stats.getUsage()).orElse(emptyApplicationUsage());
-
-        return InstanceDetail.builder()
-            .index(entry.getKey())
-            .state(entry.getValue().getState())
-            .since(toDate(entry.getValue().getSince()))
-            .cpu(usage.getCpu())
-            .memoryUsage(usage.getMemory())
-            .diskUsage(usage.getDisk())
-            .diskQuota(stats.getDiskQuota())
-            .memoryQuota(stats.getMemoryQuota())
-            .build();
-    }
-
-    private static Mono<List<InstanceDetail>> toInstanceDetailList(ApplicationInstancesResponse instancesResponse, ApplicationStatisticsResponse statisticsResponse) {
-        return Flux
-            .fromIterable(instancesResponse.getInstances().entrySet())
-            .map(entry -> toInstanceDetail(entry, statisticsResponse))
-            .collectList();
-    }
-
     private static Task toTask(org.cloudfoundry.client.v3.tasks.Task task) {
         return Task.builder()
             .command(task.getCommand())
@@ -1918,13 +1778,6 @@ public final class DefaultApplications implements Applications {
         }
 
         return sb.toString();
-    }
-
-    private static Mono<List<String>> toUrls(List<org.cloudfoundry.client.v2.routes.Route> routes) {
-        return Flux
-            .fromIterable(routes)
-            .map(DefaultApplications::toUrl)
-            .collectList();
     }
 
     private static Mono<Void> updateBuildpacks(CloudFoundryClient cloudFoundryClient, String applicationId, ApplicationManifest manifest) {
@@ -1998,4 +1851,319 @@ public final class DefaultApplications implements Applications {
             .then();
     }
 
+    private static Mono<String> getApplicationV3IdWhere(CloudFoundryClient cloudFoundryClient, String application, String spaceId, Predicate<ApplicationResource> predicate) {
+        return getApplicationV3(cloudFoundryClient, application, spaceId)
+            .filter(predicate)
+            .map(ApplicationResource::getId);
+    }
+
+    private static Mono<Void> startApplicationV3AndWait(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, Duration startupTimeout) {
+        return requestPackagesWithReadyState(cloudFoundryClient, applicationId)
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
+            .single()
+            .onErrorResume(IndexOutOfBoundsException.class, e -> ExceptionUtils.illegalState("Application %s failed during start ", application))
+            .flatMapMany(packageResource -> requestDropletsWithStagedState(cloudFoundryClient, packageResource.getId())
+                .switchIfEmpty(requestCreateBuildAndSetCurrentDroplet(cloudFoundryClient, application, applicationId, stagingTimeout, packageResource.getId())
+                    .flatMapMany(response -> Flux.just(DropletResource.builder().build())))
+                .then(requestApplicationStart(cloudFoundryClient, applicationId)))
+            .then(waitApplicationForRunning(cloudFoundryClient, application, applicationId, startupTimeout));
+    }
+
+    private static Mono<Void> requestCreateBuildAndSetCurrentDroplet(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration stagingTimeout, String packageId) {
+        return requestCreateBuild(cloudFoundryClient, packageId)
+            .flatMap(response -> waitForBuildSucceed(cloudFoundryClient, application, applicationId, stagingTimeout))
+            .flatMap(buildId -> requestGetBuild(cloudFoundryClient, buildId))
+            .flatMap(response -> requestSetApplicationCurrentDroplet(cloudFoundryClient, applicationId, response.getDroplet().getId()))
+            .then();
+    }
+
+    private static Mono<StartApplicationResponse> requestApplicationStart(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+            .start(org.cloudfoundry.client.v3.applications.StartApplicationRequest.builder()
+                .applicationId(applicationId)
+                .build());
+    }
+
+    private static Flux<PackageResource> requestPackagesWithReadyState(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.packages()
+            .list(ListPackagesRequest.builder()
+                .applicationId(applicationId)
+                .state(PackageState.READY)
+                .orderBy("-created_at")
+                .page(page)
+                .build()));
+    }
+
+    private static Flux<DropletResource> requestDropletsWithStagedState(CloudFoundryClient cloudFoundryClient, String packageId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.packages()
+            .listDroplets(ListPackageDropletsRequest.builder()
+                .packageId(packageId)
+                .state(DropletState.STAGED)
+                .page(page)
+                .build()));
+    }
+
+    private static Flux<ProcessResource> requestGetApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.applicationsV3()
+            .listProcesses(ListApplicationProcessesRequest.builder()
+                .applicationId(applicationId)
+                .page(page)
+                .processId(applicationId)
+                .build()));
+    }
+
+    private static Flux<ProcessState> requestGetProcessesStates(CloudFoundryClient cloudFoundryClient, String processId) {
+        return cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build())
+            .flatMapIterable(GetProcessStatisticsResponse::getResources)
+            .map(ProcessStatisticsResource::getState);
+    }
+
+    private static Mono<Void> waitApplicationForRunning(CloudFoundryClient cloudFoundryClient, String application, String applicationId, Duration startupTimeout) {
+        return requestGetApplicationProcesses(cloudFoundryClient, applicationId)
+            .singleOrEmpty()
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
+            .flatMapMany(resource -> requestGetProcessesStates(cloudFoundryClient, resource.getId()))
+            .reduce(collectProcessesStates())
+            .filter(isProcessCompleted())
+            .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), startupTimeout))
+            .filter(ProcessState.RUNNING::equals)
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during start", application))
+            .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during start", application))
+            .then();
+    }
+
+    private static BiFunction<ProcessState, ProcessState, ProcessState> collectProcessesStates() {
+        return (totalState, instanceState) -> {
+            if (ProcessState.RUNNING.equals(instanceState) && ProcessState.RUNNING.equals(totalState) ||
+                ProcessState.RUNNING.equals(instanceState) && ProcessState.STARTING.equals(totalState) ||
+                ProcessState.RUNNING.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
+                return ProcessState.RUNNING;
+            }
+
+            if (ProcessState.STARTING.equals(instanceState) && ProcessState.STARTING.equals(totalState) ||
+                ProcessState.STARTING.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
+                return ProcessState.STARTING;
+            }
+
+            if (ProcessState.CRASHED.equals(instanceState) && ProcessState.CRASHED.equals(totalState)) {
+                return ProcessState.CRASHED;
+            }
+
+            return totalState;
+        };
+    }
+
+    private static Predicate<ProcessState> isProcessCompleted() {
+        return state -> ProcessState.RUNNING.equals(state) || ProcessState.CRASHED.equals(state);
+    }
+
+    private static Mono<SetApplicationCurrentDropletResponse> requestSetApplicationCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId, String dropletId) {
+        return cloudFoundryClient.applicationsV3()
+            .setCurrentDroplet(SetApplicationCurrentDropletRequest.builder()
+                .data(Relationship.builder()
+                    .id(dropletId)
+                    .build())
+                .applicationId(applicationId)
+                .build());
+    }
+
+    private static Mono<GetApplicationCurrentDropletResponse> requestGetApplicationsCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return cloudFoundryClient.applicationsV3()
+            .getCurrentDroplet(GetApplicationCurrentDropletRequest.builder()
+                .applicationId(applicationId)
+                .build());
+    }
+
+
+    private static Mono<CreateBuildResponse> requestCreateBuild(CloudFoundryClient cloudFoundryClient, String packageId) {
+        return cloudFoundryClient.builds()
+            .create(CreateBuildRequest.builder()
+                .getPackage(Relationship.builder()
+                    .id(packageId)
+                    .build())
+                .build());
+    }
+
+    private static Mono<String> waitForBuildSucceed(CloudFoundryClient cloudFoundryClient, String application, String buildId, Duration stagingTimeout) {
+        Duration timeout = Optional.ofNullable(stagingTimeout).orElse(Duration.ofMinutes(15));
+
+        return requestGetBuild(cloudFoundryClient, buildId)
+            .map(GetBuildResponse::getState)
+            .filter(isBuildCompleted())
+            .repeatWhenEmpty(exponentialBackOff(Duration.ofSeconds(1), Duration.ofSeconds(15), timeout))
+            .filter(isBuildStaged())
+            .switchIfEmpty(ExceptionUtils.illegalState("Application %s failed during staging", application))
+            .onErrorResume(DelayTimeoutException.class, t -> ExceptionUtils.illegalState("Application %s timed out during staging", application))
+            .thenReturn(buildId);
+    }
+
+    private static Mono<GetBuildResponse> requestGetBuild(CloudFoundryClient cloudFoundryClient, String buildId) {
+        return cloudFoundryClient.builds()
+            .get(GetBuildRequest.builder()
+                .buildId(buildId)
+                .build())
+            .cast(GetBuildResponse.class);
+    }
+
+    private static Predicate<BuildState> isBuildCompleted() {
+        return state -> "STAGED".equals(state.getValue()) || "FAILED".equals(state.getValue());
+    }
+
+    private static Predicate<BuildState> isBuildStaged() {
+        return state -> "STAGED".equals(state.getValue());
+    }
+
+    private static Predicate<ApplicationResource> isNotIn(ApplicationState expectedState) {
+        return resource -> !expectedState.equals(resource.getState());
+    }
+
+    private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> requestGetApplicationRoutes(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.applicationsV3()
+            .listRoutes(org.cloudfoundry.client.v3.applications.ListApplicationRoutesRequest.builder()
+                .page(page)
+                .applicationId(applicationId)
+                .build()));
+    }
+
+    private static Mono<GetProcessStatisticsResponse> requestGetProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        return cloudFoundryClient.processes()
+            .getStatistics(GetProcessStatisticsRequest.builder()
+                .processId(processId)
+                .build());
+    }
+
+    private static Flux<SidecarResource> requestListProcessSidecars(CloudFoundryClient cloudFoundryClient, String processId) {
+        return PaginationUtils.requestClientV3Resources(page -> cloudFoundryClient.processes()
+            .listSidecars(ListProcessSidecarsRequest.builder()
+                .processId(processId)
+                .page(page)
+                .build()));
+    }
+
+
+
+    private static Mono<Tuple6<ProcessResource, GetProcessStatisticsResponse, List<org.cloudfoundry.client.v3.routes.RouteResource>, GetApplicationCurrentDropletResponse, ApplicationResource, List<SidecarResource>>> getApplicationSummary(CloudFoundryClient cloudFoundryClient, ApplicationResource applicationResource) {
+        return Mono.zip(getApplicationProcesses(cloudFoundryClient, applicationResource.getId())
+                .singleOrEmpty(),
+            getProcessesStats(cloudFoundryClient, applicationResource.getId()),
+            getApplicationRoutesV3(cloudFoundryClient, applicationResource.getId()).collectList(),
+            getCurrentDroplet(cloudFoundryClient, applicationResource.getId()),
+            Mono.just(applicationResource),
+            listProcessSidecars(cloudFoundryClient, applicationResource.getId()).collectList());
+    }
+
+    private static Flux<ProcessResource> getApplicationProcesses(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationProcesses(cloudFoundryClient, applicationId);
+    }
+
+    private static Mono<GetProcessStatisticsResponse> getProcessesStats(CloudFoundryClient cloudFoundryClient, String processId) {
+        return requestGetProcessesStats(cloudFoundryClient, processId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
+                t -> Mono.just(GetProcessStatisticsResponse.builder().build()));
+    }
+
+    private static Flux<org.cloudfoundry.client.v3.routes.RouteResource> getApplicationRoutesV3(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationRoutes(cloudFoundryClient, applicationId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
+                t -> Flux.empty());
+    }
+
+    private static Mono<GetApplicationCurrentDropletResponse> getCurrentDroplet(CloudFoundryClient cloudFoundryClient, String applicationId) {
+        return requestGetApplicationsCurrentDroplet(cloudFoundryClient, applicationId);
+    }
+
+    private static Flux<SidecarResource> listProcessSidecars(CloudFoundryClient cloudFoundryClient, String processId) {
+        return requestListProcessSidecars(cloudFoundryClient, processId)
+            .onErrorResume(ExceptionUtils.statusCodeV3(CF_RESOURCE_NOT_FOUND, UNKNOWN_ERROR),
+                t -> Flux.empty());
+    }
+
+    private static ApplicationDetail toApplicationDetail(ProcessResource processResource,
+                                                         GetProcessStatisticsResponse processStatistics,
+                                                         List<org.cloudfoundry.client.v3.routes.RouteResource> routeResources,
+                                                         GetApplicationCurrentDropletResponse currentDroplet,
+                                                         ApplicationResource applicationResource,
+                                                         List<SidecarResource> sidecarResources) {
+
+        return ApplicationDetail.builder()
+            .sidecars(toSidecarNames(sidecarResources))
+            .buildpacks(toBuildpackNames(currentDroplet))
+            .diskQuota(toDiskQuota(processStatistics))
+            .runningInstances(toRunningInstancesAmount(processStatistics))
+            .urls(toUrls(routeResources))
+            .id(applicationResource.getId())
+            .instanceDetails(toInstanceDetails(processStatistics))
+            .instances(processResource.getInstances())
+            .lastUploaded(toDate(currentDroplet.getUpdatedAt()))
+            .memoryLimit(processResource.getMemoryInMb())
+            .name(applicationResource.getName())
+            .requestedState(applicationResource.getState().getValue())
+            .stack(currentDroplet.getStack())
+            .build();
+
+    }
+
+
+    private static List<String> toSidecarNames(List<SidecarResource> sidecarResources) {
+        return sidecarResources.stream()
+            .map(SidecarResource::getName)
+            .collect(Collectors.toList());
+    }
+
+    private static Iterable<String> toUrls(List<org.cloudfoundry.client.v3.routes.RouteResource> routeResources) {
+        return routeResources.stream()
+            .map(org.cloudfoundry.client.v3.routes.RouteResource::getUrl)
+            .collect(Collectors.toList());
+    }
+
+    private static Integer toRunningInstancesAmount(GetProcessStatisticsResponse processStatistics) {
+        return processStatistics.getResources()
+            .stream()
+            .filter(resource -> resource.getState().equals(ProcessState.RUNNING))
+            .map(e -> 1)
+            .reduce(0, Integer::sum);
+    }
+
+    private static Integer toDiskQuota(GetProcessStatisticsResponse processStatistics) {
+        return processStatistics.getResources()
+            .stream()
+            .map(ProcessStatisticsResource::getDiskQuota)
+            .findFirst()
+            .orElse(0L)
+            .intValue();
+    }
+
+    private static Iterable<String> toBuildpackNames(GetApplicationCurrentDropletResponse currentDroplet) {
+        return currentDroplet.getBuildpacks()
+            .stream()
+            .map(Buildpack::getName)
+            .collect(Collectors.toList());
+    }
+
+    private static Iterable<InstanceDetail> toInstanceDetails(GetProcessStatisticsResponse processStatistics) {
+        return processStatistics.getResources()
+            .stream()
+            .map(DefaultApplications::toInstanceDetail)
+            .collect(Collectors.toList());
+    }
+
+    private static InstanceDetail toInstanceDetail(ProcessStatisticsResource resource) {
+
+        final String since = Instant.parse(resource.getUsage().getTime())
+            .minusSeconds(resource.getUptime()).toString();
+
+        return InstanceDetail.builder()
+            .index(String.valueOf(resource.getIndex()))
+            .state(resource.getState().getValue())
+            .since(toDate(since))
+            .cpu(resource.getUsage().getCpu())
+            .memoryUsage(resource.getUsage().getMemory())
+            .diskUsage(resource.getUsage().getDisk())
+            .diskQuota(resource.getDiskQuota())
+            .memoryQuota(resource.getMemoryQuota())
+            .build();
+    }
 }
